@@ -4,8 +4,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class SupabaseService {
   static Future<void> initialize() async {
     await Supabase.initialize(
-      url: dotenv.env['SUPABASE_URL']!,
-      anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+      url: dotenv.env['YOUR_SUPABASE_URL']!,
+      anonKey: dotenv.env['YOUR_SUPABASE_ANON_KEY']!,
     );
   }
 

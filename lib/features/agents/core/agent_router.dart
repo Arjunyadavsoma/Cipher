@@ -5,8 +5,6 @@ import 'intent_gate.dart';
 
 class RoutingDecision {
   final BaseAgent agent;
-
-  /// 'mention' | 'normal' | 'classified' | 'default'
   final String method;
   final double confidence;
 
@@ -17,27 +15,16 @@ class RoutingDecision {
   });
 }
 
-/// Routing priority, exactly per spec:
-///   1. Explicit @mention -> direct match, execute immediately
-///   2. No mention -> IntentGate decides normal vs agent-required
-///   3. If agent-required -> IntentClassifier picks a specific agent
-///   4. Confidence >= 0.80 -> use selected agent
-///      Confidence <  0.80 -> fall back to Default Chat Agent
 class AgentRouter {
   AgentRouter._internal();
-
   static final AgentRouter instance = AgentRouter._internal();
 
   static const double _confidenceThreshold = 0.80;
 
   Future<RoutingDecision> route(String message) async {
-    // Step 1: explicit @mention - check the message against every
-    // registered agent's actual name (longest names first, so e.g.
-    // "Email Agent" is checked before any shorter/partial name that
-    // could otherwise match a prefix of it).
+    // Step 1: explicit @mention
     final mentionAgent = _findMentionedAgent(message);
     if (mentionAgent != null) {
-      // ignore: avoid_print
       print('AgentRouter: matched @mention -> ${mentionAgent.name}');
       return RoutingDecision(agent: mentionAgent, method: 'mention');
     }
@@ -53,15 +40,12 @@ class AgentRouter {
 
     // Step 3: full agent classification
     final classification = await IntentClassifier.instance.classify(message);
-
-    // ignore: avoid_print
     print('AgentRouter: classifier picked "${classification.agentName}" '
         'at confidence ${classification.confidence} '
         '(reason: "${classification.reason}")');
 
     if (classification.confidence >= _confidenceThreshold) {
-      final agent =
-          AgentRegistry.instance.findByName(classification.agentName);
+      final agent = AgentRegistry.instance.findByName(classification.agentName);
       if (agent != null) {
         return RoutingDecision(
           agent: agent,
@@ -71,7 +55,7 @@ class AgentRouter {
       }
     }
 
-    // Step 4: low confidence or unmatched agent name -> safe fallback
+    // Step 4: fallback
     return RoutingDecision(
       agent: AgentRegistry.instance.defaultAgent,
       method: 'default',
@@ -79,13 +63,21 @@ class AgentRouter {
     );
   }
 
-  /// Checks whether "@<agent name>" (case-insensitive) appears anywhere in
-  /// the message, for every registered agent. Checks longer names first so
-  /// a shorter agent name that happens to be a prefix of a longer one
-  /// can't shadow it.
-  BaseAgent? _findMentionedAgent(String message) {
-    final lowerMessage = message.toLowerCase();
+  // In your _findMentionedAgent method:
+BaseAgent? _findMentionedAgent(String message) {
+  final lowerMessage = message.toLowerCase();
 
+  if (lowerMessage.contains('@image')) {
+    return AgentRegistry.instance.getAgent('pixelster_image');
+  }
+  if (lowerMessage.contains('@video')) {
+    return AgentRegistry.instance.getAgent('pixelster_video');
+  }
+
+  // ... rest remains the same
+
+
+    // Existing generic @mention check
     final agents = AgentRegistry.instance.getAllAgents().toList()
       ..sort((a, b) => b.name.length.compareTo(a.name.length));
 

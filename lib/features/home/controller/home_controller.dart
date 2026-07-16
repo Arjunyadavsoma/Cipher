@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mimir_ai/core/services/file_parser/file_parser_service.dart';
 import 'package:mimir_ai/core/services/gmail/gmail_auth_service.dart';
+import 'package:mimir_ai/core/services/notification_service.dart'; // NEW
 import 'package:mimir_ai/core/services/share/share_intent_service.dart';
 import 'package:mimir_ai/core/services/supabase/voice_upload_service.dart';
 import 'package:mimir_ai/features/agents/services/agent_service.dart';
@@ -33,44 +34,37 @@ class HomeController extends ChangeNotifier {
 
   bool showGmailIntroDialog = false;
 
+  // NEW: Track if the user is currently looking at the chat screen
+  bool _isChatScreenActive = false;
+
   static const _gmailIntroShownKey = 'gmail_intro_shown';
 
-  // Picked but not-yet-sent file attachment, shown as a chip above the
-  // composer. Cleared once sendMessage() picks it up (or the user removes
-  // it manually before sending).
   PlatformFile? pendingAttachment;
-
   String? conversationId;
 
   bool get hasConversation => messages.isNotEmpty;
 
   final AgentService _agentService = AgentService.instance;
-
   StreamSubscription<IncomingShare>? _shareSub;
 
   HomeController() {
     _listenForSharedContent();
   }
 
-  // ---------- SHARE-TO-APP (Android "Share via..." target) ----------
+  void setChatScreenActive(bool isActive) {
+    _isChatScreenActive = isActive;
+  }
 
-  /// Wires up both halves of receiving content shared in from another
-  /// app: the live stream, for when this app is already running, and the
-  /// one-off cold-start check, for when the share is what launched it.
+  // ---------- SHARE-TO-APP ----------
   void _listenForSharedContent() {
     _shareSub = ShareIntentService.instance.stream.listen(_applyIncomingShare);
-
     ShareIntentService.instance.consumeInitial().then((share) {
       if (share != null) _applyIncomingShare(share);
     });
   }
 
-  /// Always starts a fresh chat before applying the share - shared
-  /// content should land in a new conversation, never get appended into
-  /// whatever happened to be open already.
   void _applyIncomingShare(IncomingShare share) {
     startNewChat();
-
     if (share.text != null) {
       textController.text = share.text!;
       textController.selection = TextSelection.collapsed(
@@ -79,13 +73,11 @@ class HomeController extends ChangeNotifier {
     } else if (share.file != null) {
       attachFile(share.file!);
     }
-
     showSuggestions = false;
     notifyListeners();
   }
 
   // ---------- TEXT MESSAGE FLOW ----------
-
   Future<void> sendMessage() async {
     if (isSending) return;
 
@@ -129,23 +121,12 @@ class HomeController extends ChangeNotifier {
 
     messages.add(userMessage);
     pendingAttachment = null;
-
     textController.clear();
     notifyListeners();
     _scrollToBottom();
 
-    // What actually goes to the agent pipeline - starts as the typed
-    // caption, and gets the extracted file content appended below if
-    // there's an attachment.
     var pipelineMessage = text;
 
-    // FIX: previously this required attachment.path != null, which is
-    // routinely null on Android when a file is picked from a cloud
-    // provider (Google Drive, Downloads via SAF, etc.) - extraction would
-    // silently never run, pipelineMessage stayed as just the (often
-    // empty) caption, and fileParseStatus stayed stuck on "parsing"
-    // forever. Now we attempt extraction whenever we have EITHER a path
-    // OR bytes, and always resolve the status one way or the other.
     if (attachment != null &&
         (attachment.path != null || attachment.bytes != null)) {
       final parsed = await FileParserService.instance.extractText(
@@ -180,9 +161,7 @@ class HomeController extends ChangeNotifier {
             : "Summarize this document and highlight the key points.";
 
         final buffer = StringBuffer();
-        buffer.writeln(
-          "The user attached a file named \"${attachment.name}\".",
-        );
+        buffer.writeln("The user attached a file named \"${attachment.name}\".");
         if (parsed.truncated) {
           buffer.writeln(
             "(Note: this file was long - only the first "
@@ -198,12 +177,8 @@ class HomeController extends ChangeNotifier {
 
         pipelineMessage = buffer.toString();
       }
-
       notifyListeners();
     } else if (attachment != null) {
-      // Neither path nor bytes were available - this should be rare, but
-      // must not fail silently: mark the bubble as failed and tell the
-      // user, instead of quietly sending an empty/caption-only message.
       final index = messages.indexWhere((m) => m.id == messageId);
       if (index != -1) {
         messages[index] = messages[index].copyWith(
@@ -219,34 +194,21 @@ class HomeController extends ChangeNotifier {
     }
 
     try {
-      // Runs the full pipeline: memory trigger check -> context
-      // summarization -> agent routing (mention / gate / classifier) ->
-      // selected agent execution -> execution logging.
       final result = await _agentService.processMessage(
         userId: userId,
         chatId: conversationId!,
         message: pipelineMessage,
       );
 
+      _processAssistantResult(result); // NEW: Handles media parsing & UI update
+      
       final needsConnect = result.action?.type == AgentActionType.connectGmail;
-
-      messages.add(
-        ChatMessage(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          text: result.responseText,
-          sender: Sender.assistant,
-          time: DateTime.now(),
-          needsGmailConnect: needsConnect,
-        ),
-      );
-
       if (needsConnect) {
         needsGmailConnect = true;
         await _maybeShowGmailIntro();
       }
     } catch (e) {
       debugPrint("sendMessage error: $e");
-
       messages.add(
         ChatMessage(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -259,37 +221,11 @@ class HomeController extends ChangeNotifier {
 
     isTyping = false;
     isSending = false;
-
     notifyListeners();
     _scrollToBottom();
   }
 
-  // ---------- ATTACHMENTS ----------
-
-  void attachFile(PlatformFile file) {
-    pendingAttachment = file;
-    notifyListeners();
-  }
-
-  void removeAttachment() {
-    pendingAttachment = null;
-    notifyListeners();
-  }
-
-  String _extensionOf(String fileName) {
-    final dotIndex = fileName.lastIndexOf('.');
-    if (dotIndex == -1 || dotIndex == fileName.length - 1) return '';
-    return fileName.substring(dotIndex + 1).toLowerCase();
-  }
-
   // ---------- VOICE MESSAGE FLOW ----------
-
-  /// Called after a recording finishes. Runs the Supabase audio upload
-  /// (for storage/playback) and Groq Whisper transcription (for the AI)
-  /// concurrently. Once transcription succeeds, the transcript is fed
-  /// into the same agent pipeline as a typed message - the audio upload
-  /// result is just attached to the bubble for playback, it's never sent
-  /// to the AI itself.
   Future<void> sendVoiceMessage({
     required String localFilePath,
     required int durationSeconds,
@@ -309,7 +245,6 @@ class HomeController extends ChangeNotifier {
     }
 
     conversationId ??= DateTime.now().microsecondsSinceEpoch.toString();
-
     final messageId = DateTime.now().microsecondsSinceEpoch.toString();
 
     final voiceMessage = ChatMessage(
@@ -333,9 +268,6 @@ class HomeController extends ChangeNotifier {
     String? uploadedUrl;
     String? transcript;
 
-    // Upload and transcription are independent - run them concurrently
-    // rather than waiting on one before starting the other. Each is
-    // wrapped so a failure in one doesn't cancel/break the other.
     await Future.wait([
       VoiceUploadService.uploadRecording(localFilePath).then((url) {
         uploadedUrl = url;
@@ -386,25 +318,15 @@ class HomeController extends ChangeNotifier {
         message: transcript!,
       );
 
+      _processAssistantResult(result); // NEW: Handles media parsing & UI update
+
       final needsConnect = result.action?.type == AgentActionType.connectGmail;
-
-      messages.add(
-        ChatMessage(
-          id: DateTime.now().microsecondsSinceEpoch.toString(),
-          text: result.responseText,
-          sender: Sender.assistant,
-          time: DateTime.now(),
-          needsGmailConnect: needsConnect,
-        ),
-      );
-
       if (needsConnect) {
         needsGmailConnect = true;
         await _maybeShowGmailIntro();
       }
     } catch (e) {
       debugPrint("sendVoiceMessage agent error: $e");
-
       messages.add(
         ChatMessage(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -420,8 +342,84 @@ class HomeController extends ChangeNotifier {
     _scrollToBottom();
   }
 
-  // ---------- MISC ----------
+  // ---------- NEW: HELPER TO PROCESS MEDIA & NOTIFICATIONS ----------
+    // ---------- NEW: HELPER TO PROCESS MEDIA & NOTIFICATIONS ----------
+  void _processAssistantResult(AgentExecutionResult result) {
+    String extractedImageUrl = '';
+    String extractedVideoUrl = '';
 
+    // Parse image markdown: ![Generated Image](url)
+    final imageRegex = RegExp(r'!\[.*?\]\((.*?)\)');
+    final match = imageRegex.firstMatch(result.responseText);
+    if (match != null) {
+      extractedImageUrl = match.group(1)!;
+    }
+
+    // Parse video markdown: [Watch Video](url)
+    final videoRegex = RegExp(r'\[Watch Video\]\((.*?)\)');
+    final videoMatch = videoRegex.firstMatch(result.responseText);
+    if (videoMatch != null) {
+      extractedVideoUrl = videoMatch.group(1)!;
+    }
+
+    MessageType msgType = MessageType.text;
+    if (extractedImageUrl.isNotEmpty) {
+      msgType = MessageType.image;
+    } else if (extractedVideoUrl.isNotEmpty) {
+      msgType = MessageType.video;
+    }
+
+    messages.add(
+      ChatMessage(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        text: result.responseText,
+        sender: Sender.assistant,
+        time: DateTime.now(),
+        needsGmailConnect: result.action?.type == AgentActionType.connectGmail,
+        type: msgType,
+        imageUrl: extractedImageUrl,
+        videoUrl: extractedVideoUrl,
+      ),
+    );
+
+    // Send Notification if user is NOT on the screen
+    if (!_isChatScreenActive) {
+      String notifTitle = "Mimir AI";
+      String notifBody = "Response received.";
+      if (msgType == MessageType.image) {
+        notifTitle = "Image Generated!";
+        notifBody = "Your generated image is ready to view.";
+      } else if (msgType == MessageType.video) {
+        notifTitle = "Video Generated!";
+        notifBody = "Your generated video is ready to view.";
+      }
+      
+      // FIXED: Calling the static method directly without .instance
+      NotificationService.showLocalNotification(
+        title: notifTitle,
+        body: notifBody,
+      );
+    }
+  }
+
+  // ---------- ATTACHMENTS ----------
+  void attachFile(PlatformFile file) {
+    pendingAttachment = file;
+    notifyListeners();
+  }
+
+  void removeAttachment() {
+    pendingAttachment = null;
+    notifyListeners();
+  }
+
+  String _extensionOf(String fileName) {
+    final dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex == -1 || dotIndex == fileName.length - 1) return '';
+    return fileName.substring(dotIndex + 1).toLowerCase();
+  }
+
+  // ---------- MISC ----------
   void startNewChat() {
     messages.clear();
     conversationId = null;
@@ -433,7 +431,6 @@ class HomeController extends ChangeNotifier {
   Future<void> _maybeShowGmailIntro() async {
     final prefs = await SharedPreferences.getInstance();
     final alreadyShown = prefs.getBool(_gmailIntroShownKey) ?? false;
-
     if (alreadyShown) return;
 
     await prefs.setBool(_gmailIntroShownKey, true);
@@ -448,7 +445,6 @@ class HomeController extends ChangeNotifier {
 
   Future<void> testGmailConnection() async {
     final result = await GmailAuthService.instance.testConnection();
-
     messages.add(
       ChatMessage(
         id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -496,7 +492,6 @@ class HomeController extends ChangeNotifier {
         ),
       );
     }
-
     notifyListeners();
     _scrollToBottom();
   }
@@ -519,7 +514,6 @@ class HomeController extends ChangeNotifier {
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!scrollController.hasClients) return;
-
       scrollController.animateTo(
         scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 350),

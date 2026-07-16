@@ -2,7 +2,6 @@
 .env
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
-build/
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -37,7 +36,6 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
 /coverage/
 
 # Symbolication related
@@ -50,3 +48,4 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+build/

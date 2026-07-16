@@ -7,11 +7,30 @@ import '../widgets/conversation_view.dart';
 import '../widgets/drawer_view.dart';
 import '../widgets/suggestion_cards.dart';
 
-class HomePage extends ConsumerWidget {
+class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends ConsumerState<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+    // Tell controller the screen is active
+    ref.read(homeControllerProvider.notifier).setChatScreenActive(true);
+  }
+
+  @override
+  void dispose() {
+    // Tell controller the screen is closed/minimized
+    ref.read(homeControllerProvider.notifier).setChatScreenActive(false);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final controller = ref.watch(homeControllerProvider);
 
     if (controller.showGmailIntroDialog) {

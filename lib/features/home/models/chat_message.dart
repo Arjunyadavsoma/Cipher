@@ -1,19 +1,10 @@
 enum Sender { user, assistant }
 
-enum MessageType { text, voice, file }
+// Added image and video types
+enum MessageType { text, voice, file, image, video }
 
 enum VoiceUploadStatus { uploading, uploaded, failed }
-
-/// Mirrors VoiceUploadStatus's role but for the text-extraction step that
-/// runs after a file is attached (parsing happens on-device, not uploaded
-/// anywhere) - lets the file's chat bubble show "Reading file…" while
-/// FileParserService works, then settle into a final state.
 enum FileParseStatus { parsing, parsed, failed }
-
-/// Same pattern again, for voice messages: transcription runs concurrently
-/// with the Supabase audio upload, and is what actually gets sent to the
-/// agent pipeline as the "message" - the audio upload is just for storage/
-/// playback, not something the AI reads directly.
 enum TranscriptionStatus { transcribing, transcribed, failed }
 
 class ChatMessage {
@@ -37,9 +28,10 @@ class ChatMessage {
   final FileParseStatus? fileParseStatus;
   final int? extractedCharCount;
 
-  // Set on an assistant message when the agent needs Gmail connected to
-  // proceed (e.g. tried to send/read email with no account linked yet).
-  // Renders an inline "Connect Google Account" button on this bubble.
+  // NEW: Media generation fields
+  final String? imageUrl;
+  final String? videoUrl;
+
   final bool needsGmailConnect;
 
   ChatMessage({
@@ -58,6 +50,8 @@ class ChatMessage {
     this.fileExtension,
     this.fileParseStatus,
     this.extractedCharCount,
+    this.imageUrl,
+    this.videoUrl,
     this.needsGmailConnect = false,
   });
 
@@ -68,6 +62,8 @@ class ChatMessage {
     TranscriptionStatus? transcriptionStatus,
     FileParseStatus? fileParseStatus,
     int? extractedCharCount,
+    String? imageUrl,
+    String? videoUrl,
   }) {
     return ChatMessage(
       id: id,
@@ -85,6 +81,8 @@ class ChatMessage {
       fileExtension: fileExtension,
       fileParseStatus: fileParseStatus ?? this.fileParseStatus,
       extractedCharCount: extractedCharCount ?? this.extractedCharCount,
+      imageUrl: imageUrl ?? this.imageUrl,
+      videoUrl: videoUrl ?? this.videoUrl,
       needsGmailConnect: needsGmailConnect,
     );
   }
