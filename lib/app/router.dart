@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mimir_ai/Knowledge/knowledge_Screen/knowledge_page.dart';
 import 'package:mimir_ai/app/app.dart';
 
 import 'package:mimir_ai/app/features/auth/data/onboarding/screens/onboarding_page.dart';
@@ -66,6 +67,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: "/",
         builder: (_, __) => const SplashPage(),
       ),
+      GoRoute(
+  path: "/knowledge",
+  builder: (_, __) => const KnowledgePage(),
+),
 
       GoRoute(
         path: "/onboarding",

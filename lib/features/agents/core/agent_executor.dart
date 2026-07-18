@@ -12,12 +12,28 @@ import 'base_agent.dart';
 
 /// The final step before an agent actually runs. Builds the full
 /// ExecutionContext (loading per-agent memory only if that agent needs
-/// it), executes the agent, and logs the result - all in one place so
-/// AgentService/ChatProvider don't need to know any of these details.
+/// it), executes the agent, and logs the result.
+///
+/// Resolution priority, highest to lowest:
+///   1. Sticky state - a pending email draft, a pending inbox search
+///      follow-up, or a research continuation. Live conversational
+///      state beats any single-message classification.
+///   2. Explicit @mention - the user typed "@video" or similar. A
+///      deterministic, user-stated override; no LLM call should be
+///      able to beat it.
+///   3. QueryPlannerService's pre-routed agent, if its confidence
+///      clears the threshold. Replaces the old
+///      IntentGate -> IntentClassifier -> AgentRouter.route() chain -
+///      AgentService now runs that single planning call itself and
+///      passes the result in via [preRoutedAgentName]/
+///      [preRoutedConfidence].
+///   4. Default Chat Agent, as the final fallback.
 class AgentExecutor {
   AgentExecutor._internal();
 
   static final AgentExecutor instance = AgentExecutor._internal();
+
+  static const double _confidenceThreshold = 0.80;
 
   Future<AgentExecutionResult> run({
     required String userId,
@@ -26,18 +42,12 @@ class AgentExecutor {
     required List<ConversationMessage> recentMessages,
     required String rollingSummary,
     required String alwaysContext,
+    String domainContext = '',
+    String? preRoutedAgentName,
+    double preRoutedConfidence = 0.0,
   }) async {
     final stopwatch = Stopwatch()..start();
 
-    // Sticky-agent check: a short confirmation like "send it" - or a short
-    // reference like "the first one" / "find more on that" - has no context
-    // of its own for IntentGate/IntentClassifier to work with, and can
-    // easily be misrouted to the Default Chat Agent. If an agent has
-    // pending state (a draft, search results, an analyzed paper) and this
-    // message reads as a reference back to it, keep routing to that agent
-    // for this turn rather than asking the classifier to guess - the
-    // agent's own execute() logic still decides what the message actually
-    // means.
     BaseAgent agent;
     Map<String, dynamic>? agentMemory;
 
@@ -83,8 +93,30 @@ class AgentExecutor {
       agent = researchAgent;
       agentMemory = researchAgentMemory;
     } else {
-      final decision = await AgentRouter.instance.route(message);
-      agent = decision.agent;
+      // Explicit @mention beats the planner's pick outright - same
+      // precedence the old AgentRouter.route() enforced (mention was
+      // checked as Step 1, before IntentGate/IntentClassifier ran at
+      // all).
+      final mentioned = AgentRouter.instance.findMentionedAgent(message);
+      if (mentioned != null) {
+        // ignore: avoid_print
+        print('AgentExecutor: @mention -> ${mentioned.name}');
+      }
+
+      BaseAgent? resolved = mentioned;
+
+      if (resolved == null &&
+          preRoutedAgentName != null &&
+          preRoutedConfidence >= _confidenceThreshold) {
+        resolved = AgentRegistry.instance.findByName(preRoutedAgentName);
+        if (resolved != null) {
+          // ignore: avoid_print
+          print('AgentExecutor: planner picked "${resolved.name}" '
+              'at confidence $preRoutedConfidence');
+        }
+      }
+
+      agent = resolved ?? AgentRegistry.instance.defaultAgent;
 
       if (agent.id == emailAgent?.id) {
         // Already loaded above - avoid a redundant Firestore read.
@@ -108,6 +140,7 @@ class AgentExecutor {
       recentMessages: recentMessages,
       rollingSummary: rollingSummary,
       alwaysContext: alwaysContext,
+      domainContext: domainContext,
       agentMemory: agentMemory,
     );
 

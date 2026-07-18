@@ -10,28 +10,19 @@ import '../models/agent_context_storage.dart';
 import '../models/execution_context.dart';
 import '../models/execution_result.dart';
 
-
-/// Handles three things:
-///   1. LATEST          - "what's the latest news" -> most recent articles
-///                         across every saved feed (or one named source),
-///                         listed rather than summarized.
-///   2. SUMMARIZE_24H    - "summarize the last 24 hours" -> fetches
-///                         articles across all saved feeds published in
-///                         the last day, hands them to Groq for a digest.
-///   3. SUMMARIZE_SOURCE - "summarize BBC" / "what's new on TechCrunch"
-///                         -> same digest treatment, scoped to one named
-///                         source instead of every feed.
+/// A professional, stateless agent responsible for fetching, listing,
+/// and summarizing news from RSS feeds.
 ///
-/// IMPORTANT - naming/mention seam (flagged rather than silently
-/// resolved): `AgentRouter._findMentionedAgent` matches literal text
-/// "@<agent.name>" (lowercased), NOT agent.id. Setting `name` to
-/// "Newsagent" (no space) is what makes typing "@newsagent" actually
-/// route here - "News Agent" (matching EmailAgent's "Email Agent"
-/// display-name convention) would require typing "@news agent" instead,
-/// which doesn't match what was asked for. This trades away naming
-/// consistency with EmailAgent for a literal, working "@newsagent"
-/// mention - revisit if display-name consistency turns out to matter
-/// more than the exact mention text.
+/// It routes natural-language requests into four specific intents:
+///   1. `LATEST`           - Lists the most recent articles.
+///   2. `SUMMARIZE_24H`    - Generates a written digest across all feeds
+///                           within a specific time window (default: 24h).
+///   3. `SUMMARIZE_SOURCE` - Generates a digest scoped to a single named source.
+///   4. `OTHER`            - Catch-all for news-adjacent queries.
+///
+/// It merges the user's saved Supabase feeds with the global defaults,
+/// gracefully handles malformed LLM JSON, and deduplicates articles
+/// before summarization to ensure high-quality digests.
 class NewsAgent implements BaseAgent {
   @override
   String get id => 'news_agent';
@@ -41,116 +32,144 @@ class NewsAgent implements BaseAgent {
 
   @override
   String get description =>
-      'Handles fetching and summarizing news from the user\'s saved RSS '
-      'feeds. Use for any request asking for the latest news, a summary '
-      'of recent news (e.g. "last 24 hours"), or a digest of a specific '
-      'saved news source by name.';
+      'Fetches and summarizes news from the user\'s saved RSS feeds. '
+      'Use for any request asking for the latest news, a digest of recent '
+      'news (e.g. "last 24 hours"), or a summary of a specific saved '
+      'source by name.';
+
+  /// Defensive caps to keep token usage and response latency bounded.
+  static const int _maxArticlesForSummary = 40;
+  static const int _maxArticlesForLatestList = 15;
+
+  /// Hard ceiling on characters of per-article body text sent to the
+  /// summarizer. Prevents a single verbose article from monopolizing
+  /// the LLM's context window.
+  static const int _maxCharsPerArticleInSummary = 1200;
 
   @override
   String get systemPrompt => '''
-You are the News Agent inside Mimir AI. Classify the user's message into
-exactly one of these intents:
+You are the News Agent inside Mimir AI. Your role is to classify the
+user's most recent message into exactly one of the intents below and
+extract the supporting fields.
 
-- LATEST: user wants to see what's newest right now, without asking for
-  a written summary - e.g. "latest news", "what's new", "show me recent
-  articles". This is a listing request, not a summarization request.
-- SUMMARIZE_24H: user wants a written digest/summary covering roughly the
-  last day across their feeds in general - e.g. "summarize the last 24
-  hours", "catch me up on today's news", "what happened today".
-- SUMMARIZE_SOURCE: user wants a digest scoped to ONE specific named
-  source - e.g. "summarize BBC", "what's new on TechCrunch today". Only
-  use this if a specific source name is actually mentioned.
-- OTHER: anything else news-related that doesn't fit the above.
+Intents
+-------
+- LATEST            : The user wants to see recent articles as a list.
+                      Example phrases: "latest news", "what's new",
+                      "show me recent articles", "what's on BBC".
+                      Use this whenever the user asks to SEE/LIST news
+                      rather than READ A WRITTEN SUMMARY of it. A source
+                      name MAY be mentioned; if so, set "sourceName".
+- SUMMARIZE_24H     : The user wants a written digest covering a time
+                      window across all feeds. Examples: "summarize the
+                      last 24 hours", "catch me up on today's news",
+                      "what happened today", "give me a news recap".
+- SUMMARIZE_SOURCE  : The user wants a written digest scoped to ONE
+                      specific named source. Examples: "summarize BBC",
+                      "what's new on TechCrunch today", "give me a
+                      digest of The Verge". A specific source name MUST
+                      be present; place it in "sourceName".
+- OTHER             : Anything news-related that does not fit above.
 
-For SUMMARIZE_SOURCE, also extract:
-- sourceName: the specific feed/source name mentioned (e.g. "BBC",
-  "TechCrunch", "The Verge"), else "" if none is clearly named.
+Field Rules
+-----------
+- "sourceName"     : The specific feed/source name mentioned, or "" if
+                     none. Required for SUMMARIZE_SOURCE. Optional for
+                     LATEST. Must be "" for SUMMARIZE_24H.
+- "hoursHint"      : An integer number of hours for the time window, or
+                     0 to use the default (24h for SUMMARIZE_24H).
+                     Examples: "last 12 hours" -> 12, "this week" -> 168,
+                     "today" -> 24, "past 6 hours" -> 6.
+- "responseText"   : A short, natural-language acknowledgement to show
+                     the user BEFORE the actual result is computed
+                     (e.g. "Fetching the latest from BBC..."). Keep it
+                     under 12 words. May be "" if no acknowledgement
+                     is needed.
 
-For any intent, also extract:
-- hoursHint: a specific timeframe in hours if the user gave one other
-  than the implicit "24" default (e.g. "last 12 hours" -> 12, "this
-  week" -> 168), else 0 to mean "use the intent's default".
-
-Always respond with JSON only, no other text, in this exact shape:
+Output
+------
+Respond with JSON ONLY — no markdown fences, no commentary. Exact shape:
 {
   "intent": "latest" | "summarize_24h" | "summarize_source" | "other",
-  "sourceName": "<source name for summarize_source, or empty string>",
-  "hoursHint": <integer, 0 for default>,
-  "responseText": "<short natural-language message to show the user>"
+  "sourceName": "<string>",
+  "hoursHint": <integer>,
+  "responseText": "<string>"
 }
 ''';
 
   @override
-  List<String> get tools => ['groq', 'rss'];
+  List<String> get tools => const ['groq', 'rss'];
 
   @override
   AgentContextStorage get contextStorage => AgentContextStorage.none;
 
-  /// Caps how many articles get sent to Groq for summarization - protects
-  /// both token usage and response time if the user has many saved feeds.
-  /// Same defensive-cap tradeoff as EmailAgent's `_maxSearchResults`.
-  static const _maxArticlesForSummary = 40;
-
-  /// Caps how many articles are listed for a plain LATEST request (no
-  /// summarization, so this can be a bit more generous than the
-  /// summary cap, but still bounded).
-  static const _maxArticlesForLatestList = 15;
+  // ===========================================================================
+  // Entry point
+  // ===========================================================================
 
   @override
   Future<AgentExecutionResult> execute(ExecutionContext context) async {
-    final parsed = await _classify(context);
-    final intent = parsed['intent'] as String? ?? 'other';
+    try {
+      final parsed = await _classify(context);
+      final intent = _normalizeIntent(parsed['intent']);
 
-    switch (intent) {
-      case 'latest':
-        return _handleLatest(context, parsed);
-      case 'summarize_24h':
-        return _handleSummarize(context, parsed, defaultHours: 24);
-      case 'summarize_source':
-        return _handleSummarizeSource(context, parsed);
-      default:
-        return AgentExecutionResult(
-          responseText: parsed['responseText'] as String? ?? '',
-          agentName: name,
-          usedTools: const ['groq'],
-        );
+      switch (intent) {
+        case _Intent.latest:
+          return _handleLatest(context, parsed);
+        case _Intent.summarize24h:
+          return _handleSummarize(
+            context,
+            parsed,
+            defaultHours: 24,
+            label: 'the last {hours} hours across your feeds',
+          );
+        case _Intent.summarizeSource:
+          return _handleSummarizeSource(context, parsed);
+        case _Intent.other:
+          return AgentExecutionResult(
+            responseText: (parsed['responseText'] as String?)
+                    ?.trim()
+                    .isNotEmpty ==
+                true
+                ? parsed['responseText'] as String
+                : "I can fetch your latest news or summarize a window of "
+                    "recent articles. Try \"latest news\", \"summarize the "
+                    "last 24 hours\", or \"summarize BBC\".",
+            agentName: name,
+            usedTools: const ['groq'],
+          );
+      }
+    } catch (e, st) {
+      return AgentExecutionResult(
+        responseText: "I ran into a problem handling that news request. Please try again in a moment.",
+        agentName: name,
+        success: false,
+        errorMessage: '$e\n$st',
+        usedTools: const ['groq', 'rss'],
+      );
     }
   }
 
-  // ---------- LATEST ----------
+  // ===========================================================================
+  // Intent Handlers
+  // ===========================================================================
 
+  /// Fetches and formats a list of the most recent articles.
   Future<AgentExecutionResult> _handleLatest(
     ExecutionContext context,
     Map<String, dynamic> parsed,
   ) async {
     final sourceName = (parsed['sourceName'] as String? ?? '').trim();
 
-    List<RssArticle> articles;
-    try {
-      articles = sourceName.isNotEmpty
-          ? await _fetchOneSource(context.userId, sourceName)
-          : await _fetchAllSavedSources(context.userId);
-    } on _NoSourcesException {
-      return AgentExecutionResult(
-        responseText: "You don't have any saved news sources yet — add "
-            "one from the News tab first.",
-        agentName: name,
-      );
-    } on _SourceNotFoundException catch (e) {
-      return AgentExecutionResult(
-        responseText: "I couldn't find a saved source matching "
-            "\"${e.attemptedName}\" — check the name and try again.",
-        agentName: name,
-      );
-    } catch (e) {
-      return AgentExecutionResult(
-        responseText: "I couldn't fetch the news right now — $e",
-        agentName: name,
-        success: false,
-        errorMessage: e.toString(),
-      );
+    final fetchResult = await _safeFetch(
+      context.userId,
+      sourceName: sourceName.isNotEmpty ? sourceName : null,
+    );
+    if (fetchResult.error != null) {
+      return _errorResult(fetchResult.error!, usedTools: const ['rss']);
     }
 
+    var articles = fetchResult.articles;
     if (articles.isEmpty) {
       return AgentExecutionResult(
         responseText: sourceName.isNotEmpty
@@ -161,82 +180,59 @@ Always respond with JSON only, no other text, in this exact shape:
       );
     }
 
-    articles.sort((a, b) {
-      final aTime = a.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bTime = b.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      return bTime.compareTo(aTime); // newest first
-    });
-
+    articles = _sortNewestFirst(articles);
     final shown = articles.take(_maxArticlesForLatestList).toList();
 
     return AgentExecutionResult(
       responseText: _formatArticleList(
         shown,
         totalFound: articles.length,
-        heading: sourceName.isNotEmpty
-            ? "Latest from $sourceName"
-            : "Latest across your feeds",
+        heading: sourceName.isNotEmpty ? "Latest from $sourceName" : "Latest across your feeds",
       ),
       agentName: name,
       usedTools: const ['rss'],
     );
   }
 
-  // ---------- SUMMARIZE (all sources, time-windowed) ----------
-
+  /// Fetches articles across all feeds within a time window and summarizes them.
   Future<AgentExecutionResult> _handleSummarize(
     ExecutionContext context,
     Map<String, dynamic> parsed, {
     required int defaultHours,
+    required String label,
   }) async {
-    final hoursHint = parsed['hoursHint'] as int? ?? 0;
-    final hours = hoursHint > 0 ? hoursHint : defaultHours;
+    final hours = _resolveHours(parsed, defaultHours: defaultHours);
 
-    List<RssArticle> articles;
-    try {
-      articles = await _fetchAllSavedSources(context.userId);
-    } on _NoSourcesException {
-      return AgentExecutionResult(
-        responseText: "You don't have any saved news sources yet — add "
-            "one from the News tab first.",
-        agentName: name,
-      );
-    } catch (e) {
-      return AgentExecutionResult(
-        responseText: "I couldn't fetch the news right now — $e",
-        agentName: name,
-        success: false,
-        errorMessage: e.toString(),
-      );
+    final fetchResult = await _safeFetch(context.userId);
+    if (fetchResult.error != null) {
+      return _errorResult(fetchResult.error!, usedTools: const ['rss']);
     }
 
     final cutoff = DateTime.now().subtract(Duration(hours: hours));
-    final windowed = articles.where((a) {
-      // Articles with no parseable pubDate are kept rather than dropped
-      // silently - excluding them would mean feeds with inconsistent
-      // date formats just vanish from the summary with no indication
-      // why, which is worse than including a few undated items.
+    final windowed = fetchResult.articles.where((a) {
+      // Articles without a parseable pubDate are retained rather than
+      // silently dropped. Excluding them would make feeds with
+      // inconsistent date formats vanish from the digest.
       if (a.publishedAt == null) return true;
       return a.publishedAt!.isAfter(cutoff);
     }).toList();
 
     if (windowed.isEmpty) {
       return AgentExecutionResult(
-        responseText: "Nothing published across your saved sources in "
-            "the last $hours hours.",
+        responseText: "Nothing published across your saved sources in the last $hours hours.",
         agentName: name,
         usedTools: const ['rss'],
       );
     }
 
+    final prepared = _prepareForSummary(windowed);
     return _summarizeArticles(
-      windowed,
-      label: "the last $hours hours across your feeds",
+      prepared,
+      label: label.replaceAll('{hours}', '$hours'),
     );
   }
 
-  // ---------- SUMMARIZE (one named source) ----------
-
+  /// Fetches articles from a specific named source and summarizes them.
   Future<AgentExecutionResult> _handleSummarizeSource(
     ExecutionContext context,
     Map<String, dynamic> parsed,
@@ -245,162 +241,269 @@ Always respond with JSON only, no other text, in this exact shape:
 
     if (sourceName.isEmpty) {
       return AgentExecutionResult(
-        responseText: "Which source would you like me to summarize?",
+        responseText: "Which source would you like me to summarize? For example: \"summarize BBC\".",
         agentName: name,
+        usedTools: const ['groq'],
       );
     }
 
-    List<RssArticle> articles;
-    try {
-      articles = await _fetchOneSource(context.userId, sourceName);
-    } on _SourceNotFoundException catch (e) {
-      return AgentExecutionResult(
-        responseText: "I couldn't find a saved source matching "
-            "\"${e.attemptedName}\" — check the name and try again.",
-        agentName: name,
-      );
-    } catch (e) {
-      return AgentExecutionResult(
-        responseText: "I couldn't fetch $sourceName right now — $e",
-        agentName: name,
-        success: false,
-        errorMessage: e.toString(),
-      );
+    final fetchResult = await _safeFetch(context.userId, sourceName: sourceName);
+    if (fetchResult.error != null) {
+      return _errorResult(fetchResult.error!, usedTools: const ['rss']);
     }
 
-    if (articles.isEmpty) {
+    if (fetchResult.articles.isEmpty) {
       return AgentExecutionResult(
-        responseText: "$sourceName doesn't have any recent articles to "
-            "summarize right now.",
+        responseText: "$sourceName doesn't have any recent articles to summarize right now.",
         agentName: name,
         usedTools: const ['rss'],
       );
     }
 
-    return _summarizeArticles(articles, label: sourceName);
+    final prepared = _prepareForSummary(fetchResult.articles);
+    return _summarizeArticles(prepared, label: sourceName);
   }
 
-  // ---------- SHARED: fetch + summarize helpers ----------
+  // ===========================================================================
+  // Fetch & Source Resolution Layer
+  // ===========================================================================
 
-  Future<List<RssArticle>> _fetchAllSavedSources(String userId) async {
-    final sources = [
-      ...kSuggestedRssFeeds,
-      ...await RssSourceRepository().getSavedSources(userId),
-    ];
-
-    if (sources.isEmpty) throw _NoSourcesException();
-
-    final all = <RssArticle>[];
-    for (final source in sources) {
-      try {
-        final fetched = await ToolManager.instance.executeTool('rss', {
-              'feedUrl': source.feedUrl,
-              'sourceName': source.name,
-            })
-            as List<RssArticle>;
-        all.addAll(fetched);
-      } catch (_) {
-        // One feed failing (bad URL, source temporarily down) shouldn't
-        // sink the whole aggregate request - same reasoning as
-        // RssController.loadSources() treating a saved-source load
-        // failure as non-fatal. Skip and continue with the rest.
+  /// Safely executes the fetch pipeline, catching network/DB errors and
+  /// converting them into user-friendly [_NewsError] objects.
+  Future<_FetchResult> _safeFetch(String userId, {String? sourceName}) async {
+    try {
+      final sources = await _resolveSources(userId, name: sourceName);
+      if (sourceName != null && sources.length == 1) {
+        final fetched = await _fetchOne(sources.single);
+        return _FetchResult(fetched, null);
       }
-    }
 
-    return all;
+      final all = <RssArticle>[];
+      for (final source in sources) {
+        try {
+          all.addAll(await _fetchOne(source));
+        } catch (_) {
+          // A single feed failing (bad URL, source temporarily down)
+          // should not sink the whole aggregate request. Skip and continue.
+        }
+      }
+      return _FetchResult(all, null);
+    } on _NoSourcesException {
+      return _FetchResult(
+        const [],
+        _NewsError(message: "You don't have any saved news sources yet — add one from the News tab first."),
+      );
+    } on _SourceNotFoundException catch (e) {
+      return _FetchResult(
+        const [],
+        _NewsError(message: "I couldn't find a saved source matching \"${e.attemptedName}\" — check the name and try again."),
+      );
+    } catch (e) {
+      return _FetchResult(
+        const [],
+        _NewsError(message: "I couldn't fetch the news right now — $e", isHardFailure: true, detail: e.toString()),
+      );
+    }
   }
 
-  Future<List<RssArticle>> _fetchOneSource(
-    String userId,
-    String sourceName,
-  ) async {
-    final sources = [
+  /// Resolves the list of sources to query. Merges user-saved Supabase
+  /// sources with global defaults. Falls back to defaults if DB is unreachable.
+  Future<List<RssFeedSource>> _resolveSources(String userId, {String? name}) async {
+    List<RssFeedSource> saved = [];
+    try {
+      saved = await RssSourceRepository().getSavedSources(userId);
+    } catch (_) {
+      // Fallback: If Supabase fails, we still want the agent to function
+      // using the globally suggested feeds rather than crashing entirely.
+    }
+
+    final pool = <RssFeedSource>[
       ...kSuggestedRssFeeds,
-      ...await RssSourceRepository().getSavedSources(userId),
+      ...saved,
     ];
+    if (pool.isEmpty) throw _NoSourcesException();
 
-    final lowerTarget = sourceName.toLowerCase();
-    final match = sources.where(
-      (s) => s.name.toLowerCase().contains(lowerTarget),
-    );
+    if (name == null || name.trim().isEmpty) return pool;
 
-    if (match.isEmpty) {
-      throw _SourceNotFoundException(sourceName);
+    final lower = name.trim().toLowerCase();
+    final matches = pool.where((s) => s.name.toLowerCase().contains(lower)).toList(growable: false);
+
+    if (matches.isEmpty) throw _SourceNotFoundException(name);
+    return matches;
+  }
+
+  /// Calls the RSS ToolManager to retrieve and parse a single feed.
+  Future<List<RssArticle>> _fetchOne(RssFeedSource source) async {
+    final result = await ToolManager.instance.executeTool('rss', {
+      'feedUrl': source.feedUrl,
+      'sourceName': source.name,
+    });
+    if (result is! List<RssArticle>) {
+      throw StateError('RSS tool returned ${result.runtimeType}; expected List<RssArticle>.');
+    }
+    return result;
+  }
+
+  // ===========================================================================
+  // Summarization Engine
+  // ===========================================================================
+
+  /// Formats the articles and sends them to Groq for summarization.
+  Future<AgentExecutionResult> _summarizeArticles(List<RssArticle> articles, {required String label}) async {
+    if (articles.isEmpty) {
+      return AgentExecutionResult(
+        responseText: "Nothing to summarize from $label right now.",
+        agentName: name,
+        usedTools: const ['rss'],
+      );
     }
 
-    final source = match.first;
-    return await ToolManager.instance.executeTool('rss', {
-          'feedUrl': source.feedUrl,
-          'sourceName': source.name,
-        })
-        as List<RssArticle>;
-  }
+    final articlesText = articles.map((a) {
+      final body = _truncate(a.description ?? '', _maxCharsPerArticleInSummary);
+      return <String>[
+        'Source: ${a.sourceName}',
+        'Title: ${a.title}',
+        'Published: ${a.relativeTime}',
+        if (body.isNotEmpty) 'Body: $body',
+      ].join('\n');
+    }).join('\n\n---\n\n');
 
-  Future<AgentExecutionResult> _summarizeArticles(
-    List<RssArticle> articles, {
-    required String label,
-  }) async {
-    final capped = articles.take(_maxArticlesForSummary).toList();
+    final userPrompt = '''
+Summarize the following news articles from $label.
 
-    final articlesText = capped
-        .map(
-          (a) =>
-              "Source: ${a.sourceName}\nTitle: ${a.title}\nPublished: "
-              "${a.relativeTime}\nSummary: ${a.description}",
-        )
-        .join('\n\n');
+Requirements:
+1. Lead with the single most important or breaking story.
+2. Group related stories into themed clusters (e.g. "Politics", "Tech", "World"). Use a short bold header for each cluster.
+3. Within each cluster, write 2-4 concise bullet points. Each bullet should stand alone and convey a concrete fact, not a teaser.
+4. Do NOT editorialize, speculate, or add information that is not in the source material.
+5. Do NOT introduce the response with "Here is a summary..." — start directly with the first cluster.
+6. End with a one-line "Bottom line:" sentence that captures the overall shape of the news in this set.
+7. If two articles describe the same event, merge them into one bullet and cite both source names.
 
-    final summaryPrompt =
-        "Summarize these news articles from $label for the user. "
-        "Group related stories together, lead with anything major or "
-        "breaking, and keep it concise and easy to scan.\n\n$articlesText";
+Source material:
+ $articlesText
+''';
 
-    final summary = await ToolManager.instance.executeTool('groq', {
-          'systemPrompt':
-              'You are the News Agent. Summarize news articles clearly, '
-              'concisely, and without editorializing beyond what the '
-              'source material states.',
-          'message': summaryPrompt,
-          'history': const [],
-        }) as String;
+    try {
+      final raw = await ToolManager.instance.executeTool('groq', {
+        'systemPrompt': _summarizerSystemPrompt,
+        'message': userPrompt,
+        'history': const [],
+      });
 
-    return AgentExecutionResult(
-      responseText: summary,
-      agentName: name,
-      usedTools: const ['rss', 'groq'],
-    );
-  }
+      final summary = (raw is String ? raw : '').trim();
+      if (summary.isEmpty) {
+        return AgentExecutionResult(
+          responseText: "I pulled the articles from $label but couldn't produce a summary just now. Please try again.",
+          agentName: name,
+          success: false,
+          errorMessage: 'Groq returned an empty summary.',
+          usedTools: const ['rss', 'groq'],
+        );
+      }
 
-  String _formatArticleList(
-    List<RssArticle> shown, {
-    required int totalFound,
-    required String heading,
-  }) {
-    final buffer = StringBuffer();
-    buffer.writeln("**$heading**"
-        "${totalFound > shown.length ? ' (showing ${shown.length} of $totalFound)' : ''}");
-    buffer.writeln();
-    for (final a in shown) {
-      buffer.writeln("- **${a.title}** — ${a.sourceName} (${a.relativeTime})");
+      return AgentExecutionResult(
+        responseText: summary,
+        agentName: name,
+        usedTools: const ['rss', 'groq'],
+      );
+    } catch (e, st) {
+      return AgentExecutionResult(
+        responseText: "I fetched the articles from $label but hit an error while writing the summary. Please try again.",
+        agentName: name,
+        success: false,
+        errorMessage: '$e\n$st',
+        usedTools: const ['rss', 'groq'],
+      );
     }
-    return buffer.toString().trim();
   }
 
-  // ---------- CLASSIFICATION ----------
+  static const String _summarizerSystemPrompt = '''
+You are the News Agent for Mimir AI. You write clean, scannable news
+digests from raw RSS article payloads. You are precise, neutral, and
+terse. You never invent details. You merge duplicate stories. You
+prioritize by editorial importance (breaking > major > routine). You
+always structure output as themed clusters of bullets ending with a
+single "Bottom line:" sentence.
+''';
 
+  // ===========================================================================
+  // Article Preparation Utilities
+  // ===========================================================================
+
+  /// Prepares articles for summarization by sorting, deduplicating, and capping.
+  List<RssArticle> _prepareForSummary(List<RssArticle> articles) {
+    final sorted = _sortNewestFirst(articles);
+
+    final seen = <String>{};
+    final deduped = <RssArticle>[];
+    for (final a in sorted) {
+      final key = _normalizeTitle(a.title);
+      // Deduplication matters because multiple feeds frequently carry the same wire story.
+      if (key.isEmpty || seen.add(key)) {
+        deduped.add(a);
+      }
+      if (deduped.length >= _maxArticlesForSummary) break;
+    }
+    return deduped;
+  }
+
+  /// Sorts articles newest-first based on `publishedAt`.
+  List<RssArticle> _sortNewestFirst(List<RssArticle> articles) {
+    final copy = List<RssArticle>.of(articles);
+    copy.sort((a, b) {
+      final aTime = a.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bTime = b.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return bTime.compareTo(aTime);
+    });
+    return copy;
+  }
+
+  /// Normalizes titles for deduplication (lowercase, remove punctuation).
+  String _normalizeTitle(String title) {
+    return title
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  /// Safely truncates text to a maximum character count without cutting words in half.
+  String _truncate(String text, int maxChars) {
+    if (text.length <= maxChars) return text;
+    final cut = text.substring(0, maxChars);
+    final lastSpace = cut.lastIndexOf(' ');
+    return '${lastSpace > 0 ? cut.substring(0, lastSpace) : cut}…';
+  }
+
+  // ===========================================================================
+  // LLM Classification Utilities
+  // ===========================================================================
+
+  /// Classifies the user's intent via Groq.
   Future<Map<String, dynamic>> _classify(ExecutionContext context) async {
-    final history =
-        context.recentMessages.map((m) => m.toGroqFormat()).toList();
+    final history = context.recentMessages.map((m) => m.toGroqFormat()).toList();
 
-    final rawResponse = await ToolManager.instance.executeTool('groq', {
-          'systemPrompt': systemPrompt,
-          'message': _buildPrompt(context),
-          'history': history,
-        }) as String;
+    final raw = await ToolManager.instance.executeTool('groq', {
+      'systemPrompt': systemPrompt,
+      'message': _buildPrompt(context),
+      'history': history,
+    });
 
-    return _parseJson(rawResponse);
+    final text = raw is String ? raw : '';
+    final parsed = _parseJson(text);
+
+    // Coerce types defensively — Groq occasionally returns hoursHint as
+    // a string, or omits fields entirely.
+    return {
+      'intent': parsed['intent']?.toString() ?? 'other',
+      'sourceName': parsed['sourceName']?.toString() ?? '',
+      'hoursHint': _coerceInt(parsed['hoursHint']) ?? 0,
+      'responseText': parsed['responseText']?.toString() ?? '',
+    };
   }
 
+  /// Constructs the prompt payload to send to Groq.
   String _buildPrompt(ExecutionContext context) {
     final buffer = StringBuffer();
     if (context.alwaysContext.isNotEmpty) {
@@ -415,22 +518,115 @@ Always respond with JSON only, no other text, in this exact shape:
     return buffer.toString();
   }
 
+  /// Robust JSON parser. Strips markdown code fences and extracts the
+  /// outermost JSON object to prevent crashes on malformed LLM output.
   Map<String, dynamic> _parseJson(String text) {
+    var cleaned = text.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned
+          .replaceFirst(RegExp(r'^```(?:json)?\s*'), '')
+          .replaceFirst(RegExp(r'\s*```$'), '');
+    }
+
     try {
-      final start = text.indexOf('{');
-      final end = text.lastIndexOf('}');
-      if (start == -1 || end == -1) return {};
-      return jsonDecode(text.substring(start, end + 1))
-          as Map<String, dynamic>;
+      return jsonDecode(cleaned) as Map<String, dynamic>;
+    } catch (_) {
+      // Fall through to brace-scanning if standard decode fails.
+    }
+
+    try {
+      final start = cleaned.indexOf('{');
+      final end = cleaned.lastIndexOf('}');
+      if (start == -1 || end == -1 || end <= start) return {};
+      return jsonDecode(cleaned.substring(start, end + 1)) as Map<String, dynamic>;
     } catch (_) {
       return {};
     }
   }
+
+  /// Normalizes the intent string into the internal enum.
+  _Intent _normalizeIntent(Object? raw) {
+    final value = raw?.toString().toLowerCase().trim() ?? '';
+    switch (value) {
+      case 'latest':
+        return _Intent.latest;
+      case 'summarize_24h':
+      case 'summarize24h':
+      case 'summarize-24h':
+        return _Intent.summarize24h;
+      case 'summarize_source':
+      case 'summarizesource':
+      case 'summarize-source':
+        return _Intent.summarizeSource;
+      default:
+        return _Intent.other;
+    }
+  }
+
+  /// Safely converts dynamic LLM JSON values into integers.
+  int? _coerceInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim());
+    return null;
+  }
+
+  /// Extracts the time window (in hours) from the classified payload.
+  int _resolveHours(Map<String, dynamic> parsed, {required int defaultHours}) {
+    final hint = parsed['hoursHint'] as int? ?? 0;
+    if (hint > 0 && hint <= 24 * 30) return hint; // Sanity cap: 30 days max
+    return defaultHours;
+  }
+
+  // ===========================================================================
+  // Formatting & Error Helpers
+  // ===========================================================================
+
+  /// Formats a list of articles into a clean, markdown-formatted string.
+  String _formatArticleList(List<RssArticle> shown, {required int totalFound, required String heading}) {
+    final buffer = StringBuffer()
+      ..writeln('**$heading**${totalFound > shown.length ? ' (showing ${shown.length} of $totalFound)' : ''}')
+      ..writeln();
+    for (final a in shown) {
+      buffer.writeln('- **${a.title}** — ${a.sourceName} (${a.relativeTime})');
+    }
+    return buffer.toString().trim();
+  }
+
+  /// Converts an internal [_NewsError] into an [AgentExecutionResult].
+  AgentExecutionResult _errorResult(_NewsError error, {required List<String> usedTools}) {
+    return AgentExecutionResult(
+      responseText: error.message,
+      agentName: name,
+      success: !error.isHardFailure,
+      errorMessage: error.detail,
+      usedTools: usedTools,
+    );
+  }
+}
+
+// =============================================================================
+// Internal Types
+// =============================================================================
+
+enum _Intent { latest, summarize24h, summarizeSource, other }
+
+class _FetchResult {
+  _FetchResult(this.articles, this.error);
+  final List<RssArticle> articles;
+  final _NewsError? error;
+}
+
+class _NewsError {
+  _NewsError({required this.message, this.isHardFailure = false, this.detail});
+  final String message;
+  final bool isHardFailure;
+  final String? detail;
 }
 
 class _NoSourcesException implements Exception {}
 
 class _SourceNotFoundException implements Exception {
-  final String attemptedName;
   _SourceNotFoundException(this.attemptedName);
+  final String attemptedName;
 }

@@ -95,7 +95,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                     },
                   ),
                   const Text(
-                    "Mimir_ai",
+                    "Cipher Ai",
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,

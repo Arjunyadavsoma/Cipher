@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mimir_ai/core/services/background_task_service.dart';
 import 'package:mimir_ai/core/services/file_parser/file_parser_service.dart';
 import 'package:mimir_ai/core/services/gmail/gmail_auth_service.dart';
 import 'package:mimir_ai/core/services/notification_service.dart'; // NEW
@@ -25,6 +26,13 @@ class HomeController extends ChangeNotifier {
   final ScrollController scrollController = ScrollController();
 
   final List<ChatMessage> messages = [];
+
+  
+  Future<void> initUserBackgroundTasks(String userId) async {
+    // Schedule the 8 AM DSA fetch
+    await BackgroundTaskService.instance.scheduleDailyDsaFetch(userId);
+  }
+
 
   bool isTyping = false;
   bool isSending = false;

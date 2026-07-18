@@ -1,3 +1,4 @@
+import 'package:mimir_ai/features/agents/DSA_agent/dsa_agent.dart';
 import 'package:mimir_ai/features/agents/built_in/news_agent.dart';
 import 'package:mimir_ai/features/agents/research_agent/research_agent.dart';
 import 'package:mimir_ai/features/pixelster/agents/image_agent.dart';
@@ -13,6 +14,7 @@ class AgentRegistry {
     registerAgent(EmailAgent());
     registerAgent(NewsAgent()); 
     registerAgent(ResearchAgent()); 
+    registerAgent(DsaAgent()); 
 
     // Register Snapgen Agents
     registerAgent(ImageAgent());

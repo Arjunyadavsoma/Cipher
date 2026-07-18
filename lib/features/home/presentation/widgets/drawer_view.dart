@@ -1,5 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:mimir_ai/app/features/rss/view/pages/rss_page.dart';
 
@@ -47,12 +49,20 @@ class DrawerView extends StatelessWidget {
                           },
                         ),
                         _DrawerTile(
+  icon: Icons.account_tree_outlined,
+  title: "Knowledge",
+  onTap: () {
+    Navigator.pop(context);
+    context.push("/knowledge");
+  },
+),
+                        _DrawerTile(
                           icon: Icons.newspaper_outlined,
                           title: "News",
                           onTap: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => const RssPage(
+                                builder: (_) => RssPage(
                                   // TODO: replace with the real signed-in
                                   // user id from your auth provider
                                   // (firebase_auth, per pubspec.yaml).
@@ -61,7 +71,7 @@ class DrawerView extends StatelessWidget {
                                   // haven't seen — swap this one line
                                   // once you point me at how the rest of
                                   // the app reads the current user.
-                                  userId: 'CURRENT_USER_ID_PLACEHOLDER',
+                                  userId: FirebaseAuth.instance.currentUser!.uid,
                                 ),
                               ),
                             );

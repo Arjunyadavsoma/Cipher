@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mimir_ai/core/services/background_task_service.dart';
 
 import 'package:mimir_ai/core/services/notification_service.dart';
 import 'package:mimir_ai/core/services/firebase_background_handler.dart';
@@ -68,9 +69,10 @@ Future<void> main() async {
   // Notification initialization
   await NotificationService.initialize();
   
-
+  await BackgroundTaskService.instance.init();
 
   await SupabaseService.initialize();
+  
 
 
 
