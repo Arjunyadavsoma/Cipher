@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 
 import 'knowledge_entry.dart';
 
@@ -38,6 +39,14 @@ class KnowledgeRepository {
   /// Queries a single layer for entries matching any of [tags], ranked
   /// by importance, capped at [limit]. Firestore's arrayContainsAny
   /// caps at 10 values, so callers should keep tag lists tight.
+  ///
+  /// Combining `arrayContainsAny` with `orderBy` on a different field
+  /// (importance) requires a Firestore composite index. Until that
+  /// index is created in the Firebase console, this query throws
+  /// `failed-precondition` on every call - caught below so one missing
+  /// index doesn't silently zero out retrieval, and logged so it's
+  /// actually visible instead of vanishing into KnowledgeRetrievalService's
+  /// catch-all.
   Future<List<KnowledgeEntry>> queryLayer({
     required String userId,
     required String layer,
@@ -46,15 +55,62 @@ class KnowledgeRepository {
   }) async {
     if (tags.isEmpty) return [];
 
-    final snapshot = await _entriesRef(userId, layer)
-        .where('tags', arrayContainsAny: tags.take(10).toList())
-        .orderBy('importance', descending: true)
-        .limit(limit)
-        .get();
+    final tagsToMatch = tags.take(10).toList();
 
-    return snapshot.docs
+    try {
+      final snapshot = await _entriesRef(userId, layer)
+          .where('tags', arrayContainsAny: tagsToMatch)
+          .orderBy('importance', descending: true)
+          .limit(limit)
+          .get();
+
+      return snapshot.docs
+          .map((d) => KnowledgeEntry.fromMap(d.id, d.data()))
+          .toList();
+    } on FirebaseException catch (e) {
+      if (e.code == 'failed-precondition') {
+        // ignore: avoid_print
+        print(
+          'KnowledgeRepository.queryLayer: no composite index yet for '
+          'layer "$layer" (tags arrayContainsAny + importance orderBy) - '
+          'falling back to an unordered fetch. Create the index Firestore '
+          'suggests in the error below to get true top-by-importance '
+          'ranking instead of this approximation:\n$e',
+        );
+        return _queryLayerWithoutIndex(userId, layer, tagsToMatch, limit);
+      }
+      // ignore: avoid_print
+      print('KnowledgeRepository.queryLayer: layer "$layer" failed: $e');
+      return [];
+    } catch (e) {
+      // ignore: avoid_print
+      print('KnowledgeRepository.queryLayer: layer "$layer" failed: $e');
+      return [];
+    }
+  }
+
+  /// Fallback used when the composite index above doesn't exist yet.
+  /// Fetches by tag match alone (no server-side order), then sorts by
+  /// importance client-side. Only approximates "top N by importance"
+  /// when a layer has more matches than [limit] - the real fix is
+  /// still creating the composite index.
+  Future<List<KnowledgeEntry>> _queryLayerWithoutIndex(
+    String userId,
+    String layer,
+    List<String> tags,
+    int limit,
+  ) async {
+    final snapshot = await _entriesRef(
+      userId,
+      layer,
+    ).where('tags', arrayContainsAny: tags).get();
+
+    final entries = snapshot.docs
         .map((d) => KnowledgeEntry.fromMap(d.id, d.data()))
-        .toList();
+        .toList()
+      ..sort((a, b) => b.importance.compareTo(a.importance));
+
+    return entries.take(limit).toList();
   }
 
   /// Queries every layer for [tags] in one pass. Runs layer queries

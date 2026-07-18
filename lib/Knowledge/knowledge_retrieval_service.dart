@@ -29,10 +29,16 @@ class KnowledgeRetrievalService {
     List<KnowledgeEntry> matched;
     try {
       matched = await _repo.queryAllLayers(userId: userId, tags: tags);
-    } catch (_) {
+    } catch (e) {
       // Retrieval failing shouldn't block the agent from running - it
       // just runs without extra context, same as RssController treating
-      // a saved-source load failure as non-fatal.
+      // a saved-source load failure as non-fatal. Logged (not silent)
+      // so this failure mode is actually visible during development -
+      // KnowledgeRepository.queryLayer already handles the common
+      // missing-index case itself, so anything reaching here is
+      // unexpected and worth looking at.
+      // ignore: avoid_print
+      print('KnowledgeRetrievalService.buildDomainContext failed: $e');
       return '';
     }
 

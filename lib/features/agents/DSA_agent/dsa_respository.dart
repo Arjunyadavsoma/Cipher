@@ -1,5 +1,3 @@
-
-
 import 'package:mimir_ai/features/agents/DSA_agent/dsa_question.dart';
 import 'package:mimir_ai/features/agents/DSA_agent/dsa_user_progress.dart';
 import 'package:mimir_ai/features/agents/core/tool_manager.dart';
@@ -70,9 +68,15 @@ class FirebaseDsaRepository implements DsaRepository {
 
   @override
   Future<DsaUserProgress> getUserProgress(String userId) async {
+    // 'users/$userId/statistics' is a 3-segment path - Firestore reads
+    // that as a COLLECTION reference, not a document, since document
+    // paths must have an even number of segments. FirebaseTool's
+    // 'get'/'set' operations call _db.doc(path), which throws an
+    // ArgumentError on an odd-segment path. Fixed to a proper 4-segment
+    // document path below.
     final res = await _toolManager.executeTool('firebase', {
       'type': 'get',
-      'path': 'users/$userId/statistics',
+      'path': 'users/$userId/statistics/progress',
     });
     if (res is Map<String, dynamic>) {
       return DsaUserProgress.fromMap(res);
@@ -84,7 +88,7 @@ class FirebaseDsaRepository implements DsaRepository {
   Future<void> updateUserProgress(String userId, DsaUserProgress progress) async {
     await _toolManager.executeTool('firebase', {
       'type': 'set',
-      'path': 'users/$userId/statistics',
+      'path': 'users/$userId/statistics/progress',
       'data': progress.toMap(),
     });
   }

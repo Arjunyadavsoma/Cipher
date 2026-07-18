@@ -45,10 +45,15 @@ class KnowledgeWriteService {
           createdAt: DateTime.now(),
         ),
       );
-    } catch (_) {
+    } catch (e) {
       // A single fact failing to save shouldn't block the others, and
       // shouldn't surface as a user-facing error - same non-fatal
-      // treatment RssController gives a failed source save.
+      // treatment RssController gives a failed source save. Logged
+      // (not silent) so a broken write path doesn't look like "nothing
+      // happened" - e.g. a Firestore security-rules rejection would
+      // otherwise vanish here just as invisibly as retrieval failures did.
+      // ignore: avoid_print
+      print('KnowledgeWriteService: failed to save fact "$fact": $e');
     }
   }
 }

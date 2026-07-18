@@ -50,6 +50,14 @@ class DefaultChatAgent implements BaseAgent {
       buffer.writeln(context.alwaysContext);
       buffer.writeln();
     }
+    // Knowledge-retrieval context (KnowledgeRetrievalService.buildDomainContext,
+    // routed here by AgentService via QueryPlannerService.requiredKnowledgeTags).
+    // This was previously built but never read by this agent, so retrieved
+    // facts never reached the model even when retrieval succeeded.
+    if (context.domainContext.isNotEmpty) {
+      buffer.writeln(context.domainContext);
+      buffer.writeln();
+    }
     if (context.rollingSummary.isNotEmpty) {
       buffer.writeln("Conversation so far: ${context.rollingSummary}");
       buffer.writeln();

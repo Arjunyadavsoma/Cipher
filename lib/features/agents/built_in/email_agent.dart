@@ -1178,10 +1178,10 @@ Return JSON only, no other text, in this exact shape:
     // Knowledge-retrieval context (job title, writing-style preferences,
     // signature-relevant facts, etc.) - lets composed emails reflect
     // what's actually known about the user instead of a generic voice.
-    if (context.domainContext.isNotEmpty) {
-      buffer.writeln(context.domainContext);
-      buffer.writeln();
-    }
+    // email_agent.dart — correct
+if (context.domainContext.isNotEmpty) {
+  buffer.writeln(context.domainContext);
+}
     if (context.rollingSummary.isNotEmpty) {
       buffer.writeln("Conversation so far: ${context.rollingSummary}");
       buffer.writeln();
