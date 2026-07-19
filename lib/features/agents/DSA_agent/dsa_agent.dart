@@ -1,7 +1,6 @@
 import 'package:mimir_ai/features/agents/DSA_agent/dsa_question.dart';
 import 'package:mimir_ai/features/agents/DSA_agent/dsa_respository.dart';
 import 'package:mimir_ai/features/agents/DSA_agent/gfg_fetch_service.dart';
-import 'package:mimir_ai/features/agents/DSA_agent/notification_service.dart';
 import 'package:mimir_ai/features/agents/core/base_agent.dart';
 import 'package:mimir_ai/features/agents/core/tool_manager.dart';
 import 'package:mimir_ai/features/agents/models/agent_context_storage.dart';
@@ -34,15 +33,11 @@ class DsaAgent implements BaseAgent {
   @override
   AgentContextStorage get contextStorage => AgentContextStorage.firestore;
 
-  final DsaRepository _repository;
-  final GfgFetchService _gfgService;
   final DsaIntentParser _intentParser;
   final DsaHandlers _handlers;
 
   DsaAgent()
-      : _repository = FirebaseDsaRepository(),
-        _gfgService = GfgFetchService(),
-        _intentParser = DsaIntentParser(),
+      : _intentParser = DsaIntentParser(),
         _handlers = DsaHandlers(
           FirebaseDsaRepository(),
           GfgFetchService(),

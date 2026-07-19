@@ -39,57 +39,58 @@ Give clear, accurate and practical answers.
   /// instructions. [temperature] defaults to 0.7 for the same reason:
   /// classification wants deterministic output, not creative variation.
   Future<String> sendMessage({
-    required String message,
-    List<Map<String, String>> history = const [],
-    String? systemPrompt,
-    double temperature = 0.7,
-  }) async {
-    final apiKey = dotenv.env['GROQ_API_KEY'];
+  required String message,
+  List<Map<String, String>> history = const [],
+  String? systemPrompt,
+  double temperature = 0.7,
+  String model = "llama-3.3-70b-versatile",
+}) async {
+  final apiKey = dotenv.env["GROQ_API_KEY"];
 
-    if (apiKey == null || apiKey.isEmpty) {
-      throw Exception("Missing GROQ_API_KEY in .env");
-    }
-
-    return _callGroq(
-      apiKey: apiKey,
-      systemPrompt: systemPrompt ?? _defaultSystemPrompt,
-      message: message,
-      history: history,
-      temperature: temperature,
-    );
+  if (apiKey == null || apiKey.isEmpty) {
+    throw Exception("Missing GROQ_API_KEY");
   }
 
-  /// Used by GroqTool (the agent pipeline). Accepts an explicit API key
-  /// selected by ApiKeyPoolService, and a per-agent system prompt instead
-  /// of the fixed default one.
-  Future<String> sendMessageWithKey({
-    required String apiKey,
-    required String systemPrompt,
-    required String message,
-    List<Map<String, String>> history = const [],
-    double temperature = 0.7,
-  }) async {
-    if (apiKey.isEmpty) {
-      throw Exception("Empty Groq API key provided");
-    }
+  return _callGroq(
+    apiKey: apiKey,
+    systemPrompt: systemPrompt ?? _defaultSystemPrompt,
+    message: message,
+    history: history,
+    temperature: temperature,
+    model: model,
+  );
+}
 
-    return _callGroq(
-      apiKey: apiKey,
-      systemPrompt:
-          systemPrompt.isNotEmpty ? systemPrompt : _defaultSystemPrompt,
-      message: message,
-      history: history,
-      temperature: temperature,
-    );
+Future<String> sendMessageWithKey({
+  required String apiKey,
+  required String systemPrompt,
+  required String message,
+  List<Map<String, String>> history = const [],
+  double temperature = 0.7,
+  String model = "llama-3.3-70b-versatile",
+}) async {
+  if (apiKey.isEmpty) {
+    throw Exception("Empty API key");
   }
+
+  return _callGroq(
+    apiKey: apiKey,
+    systemPrompt: systemPrompt,
+    message: message,
+    history: history,
+    temperature: temperature,
+    model: model,
+  );
+}
 
   Future<String> _callGroq({
-    required String apiKey,
-    required String systemPrompt,
-    required String message,
-    required List<Map<String, String>> history,
-    double temperature = 0.7,
-  }) async {
+  required String apiKey,
+  required String systemPrompt,
+  required String message,
+  required List<Map<String, String>> history,
+  required String model,
+  double temperature = 0.7,
+}) async {
     final messages = <Map<String, String>>[
       {"role": "system", "content": systemPrompt},
       ...history,
@@ -105,10 +106,10 @@ Give clear, accurate and practical answers.
               "Content-Type": "application/json",
             },
             body: jsonEncode({
-              "model": "llama-3.3-70b-versatile",
-              "temperature": temperature,
-              "messages": messages,
-            }),
+  "model": model,
+  "temperature": temperature,
+  "messages": messages,
+}),
           )
           .timeout(const Duration(seconds: 30));
 

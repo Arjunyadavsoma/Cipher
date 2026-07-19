@@ -55,9 +55,12 @@ class KnowledgeEntry {
     );
   }
 
-  KnowledgeEntry copyWith({DateTime? lastUsedAt}) {
+  KnowledgeEntry copyWith({
+    String? id,
+    DateTime? lastUsedAt,
+  }) {
     return KnowledgeEntry(
-      id: id,
+      id: id ?? this.id,
       layer: layer,
       fact: fact,
       tags: tags,
@@ -72,20 +75,89 @@ class KnowledgeEntry {
 /// list (not a free-form string) so classification always lands on a
 /// known collection name rather than silently fragmenting into typo
 /// variants ("proffesional" vs "professional") over time.
+/// The fixed set of layers knowledge gets filed under.
 class KnowledgeLayers {
   static const personal = 'personal';
   static const professional = 'professional';
-  static const preferences = 'preferences';
   static const technical = 'technical';
   static const projects = 'projects';
+  static const education = 'education'; // For DSA, interview prep, courses
+  static const preferences = 'preferences';
+  static const schedule = 'schedule'; // For events, meetings, automations
+  static const automations = 'automations'; // For email rules, scripts
   static const general = 'general';
 
   static const all = [
-    personal,
-    professional,
-    preferences,
-    technical,
-    projects,
-    general,
+    personal, professional, technical, projects, education, 
+    preferences, schedule, automations, general
   ];
+}
+
+/// The strict enterprise dictionary.
+/// The LLM MUST choose from these tags. Dart enforces the layer and behavior.
+class KnowledgeTaxonomy {
+  // ─── SINGULAR ATTRIBUTES (Overwrites old facts) ─────────────────────
+  static const String currentJob = 'current_job';
+  static const String companyName = 'company';
+  static const String location = 'location';
+  static const String name = 'name';
+  static const String timezone = 'timezone';
+  static const String primaryEmail = 'primary_email';
+  static const String currentFocus = 'current_focus'; // e.g., "preparing for interviews"
+
+  // ─── LIST ITEMS (Appends new facts) ─────────────────────────────────
+  // Professional & Technical
+  static const String skill = 'skill';
+  static const String pastExperience = 'past_experience';
+  static const String tool = 'tool'; // VS Code, Postman, Docker
+  
+  // Projects & Code
+  static const String project = 'project';
+  static const String codebase = 'codebase'; // specific repo info
+  static const String bug = 'bug';
+  static const String architecture = 'architecture';
+
+  // Education & Prep (DSA, Interviews)
+  static const String dsaTopic = 'dsa_topic'; // e.g., graphs, dynamic programming
+  static const String interviewPrep = 'interview_prep';
+  static const String learningResource = 'learning_resource'; // links, books
+  
+  // Preferences & Personal
+  static const String diet = 'diet';
+  static const String allergy = 'allergy';
+  static const String hobby = 'hobby';
+  static const String relationship = 'relationship';
+
+  // Schedule & Automations
+  static const String event = 'event'; // meetings, birthdays
+  static const String routine = 'routine'; // "every monday I do X"
+  static const String emailRule = 'email_rule'; // "forward stripe emails to Raj"
+  static const String script = 'script'; // "run build script at 5pm"
+
+  static const allTags = [
+    currentJob, companyName, location, name, timezone, primaryEmail, currentFocus,
+    skill, pastExperience, tool, project, codebase, bug, architecture,
+    dsaTopic, interviewPrep, learningResource, diet, allergy, hobby, relationship,
+    event, routine, emailRule, script
+  ];
+
+  /// Returns true if this tag represents a singular attribute (should overwrite)
+  static bool isAttribute(String tag) {
+    return [
+      currentJob, companyName, location, name, timezone, primaryEmail, currentFocus
+    ].contains(tag);
+  }
+
+  /// Deterministically maps a tag to its Firestore collection layer
+  static String layerForTag(String tag) {
+    if ([currentJob, companyName, pastExperience].contains(tag)) return KnowledgeLayers.professional;
+    if ([skill, tool, codebase, bug, architecture].contains(tag)) return KnowledgeLayers.technical;
+    if ([project].contains(tag)) return KnowledgeLayers.projects;
+    if ([dsaTopic, interviewPrep, learningResource].contains(tag)) return KnowledgeLayers.education;
+    if ([diet, allergy, hobby].contains(tag)) return KnowledgeLayers.preferences;
+    if ([name, location, timezone, relationship].contains(tag)) return KnowledgeLayers.personal;
+    if ([primaryEmail, emailRule].contains(tag)) return KnowledgeLayers.automations;
+    if ([event, routine, script, currentFocus].contains(tag)) return KnowledgeLayers.schedule;
+    return KnowledgeLayers.general;
+  }
 }

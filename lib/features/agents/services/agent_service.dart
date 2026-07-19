@@ -24,6 +24,7 @@ class AgentService {
 
   final _summarizer = ContextSummarizerService.instance;
   final _planner = QueryPlannerService.instance;
+
   final _knowledgeRetrieval = KnowledgeRetrievalService.instance;
   final _knowledgeWrite = KnowledgeWriteService.instance;
 
@@ -32,25 +33,31 @@ class AgentService {
     required String chatId,
     required String message,
   }) async {
-    // Existing "remember that..." keyword trigger stays as-is - it's a
-    // cheap, explicit, user-initiated path and doesn't need to wait on
-    // the planner call below.
-    if (_summarizer.isMemoryTrigger(message)) {
-      await _summarizer.saveMemory(userId, message);
-    }
+    // ┌─────────────────────────────────────────────────────────┐
+    // │ OPTIMIZATION: Run planner, summary, and context fetching │
+    // │ ALL AT THE SAME TIME to cut response time in half.       │
+    // └─────────────────────────────────────────────────────────┘
+    final results = await Future.wait([
+      _planner.plan(message),
+      _summarizer.getRollingSummary(userId, chatId),
+      _summarizer.buildAlwaysContext(userId),
+    ]);
 
-    final rollingSummary = await _summarizer.getRollingSummary(userId, chatId);
-    final alwaysContext = await _summarizer.buildAlwaysContext(userId);
-    final recentMessages = ChatAiService.instance.getRecentMessages(chatId);
+    final QueryPlan plan = results[0] as QueryPlan;
+    final rollingSummary = results[1] as String;
+    final alwaysContext = results[2] as String;
 
-    // Single planning call: agent routing + knowledge tags + new facts,
-    // in one JSON response instead of two separate Groq calls.
-    final QueryPlan plan = await _planner.plan(message);
+    // ┌─────────────────────────────────────────────────────────┐
+    // │ DEBUG PRINTS: Let's see what the planner decided       │
+    // └─────────────────────────────────────────────────────────┘
+    print('🔎 PLANNER RESULT:');
+    print('  - Agent: ${plan.agentName}');
+    print('  - Tags: ${plan.requiredKnowledgeTags}');
+    print('  - Remember: ${plan.thingsToRemember}');
 
-    // Persist anything new the planner noticed. Non-blocking relative
-    // to building domainContext below - both can proceed, but we don't
-    // want a slow knowledge write to delay the response, so this isn't
-    // awaited inline with retrieval.
+    // Persist anything new the planner noticed. KnowledgeWriteService
+    // now automatically handles overwriting old singular attributes 
+    // (like jobs) vs appending list items (like projects)!
     final saveFuture = plan.thingsToRemember.isNotEmpty
         ? _knowledgeWrite.saveFacts(userId, plan.thingsToRemember)
         : Future<void>.value();
@@ -59,6 +66,16 @@ class AgentService {
       userId: userId,
       tags: plan.requiredKnowledgeTags,
     );
+
+    // ┌─────────────────────────────────────────────────────────┐
+    // │ DEBUG PRINT: Did we actually get context back?         │
+    // └─────────────────────────────────────────────────────────┘
+    print('📚 KNOWLEDGE CONTEXT INJECTED:');
+    print(
+      domainContext.isEmpty ? '  (Empty - no tags matched)' : domainContext,
+    );
+
+    final recentMessages = ChatAiService.instance.getRecentMessages(chatId);
 
     final result = await AgentExecutor.instance.run(
       userId: userId,
@@ -72,6 +89,7 @@ class AgentService {
       preRoutedConfidence: plan.confidence,
     );
 
+    // Ensure memory saves complete before returning
     await saveFuture;
 
     ChatAiService.instance.addMessage(

@@ -359,7 +359,7 @@ Respond with JSON ONLY — no markdown fences, no commentary. Exact shape:
     }
 
     final articlesText = articles.map((a) {
-      final body = _truncate(a.description ?? '', _maxCharsPerArticleInSummary);
+      final body = _truncate(a.description, _maxCharsPerArticleInSummary);
       return <String>[
         'Source: ${a.sourceName}',
         'Title: ${a.title}',

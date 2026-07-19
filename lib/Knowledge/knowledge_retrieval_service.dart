@@ -1,42 +1,36 @@
 import 'knowledge_entry.dart';
 import 'knowledge_repository.dart';
 
-/// Turns QueryPlan.requiredKnowledgeTags into a compact context string
-/// ready to drop into ExecutionContext.domainContext. Tag-match based
-/// (not embeddings) - a deliberate choice given knowledge entries are
-/// already short, atomic, tagged facts rather than long documents, so
-/// exact/overlapping tag matching is cheap and precise enough without
-/// standing up vector search.
 class KnowledgeRetrievalService {
   KnowledgeRetrievalService._internal();
-
   static final KnowledgeRetrievalService instance =
       KnowledgeRetrievalService._internal();
 
   final _repo = KnowledgeRepository.instance;
 
-  /// Hard cap on total facts injected regardless of how many layers
-  /// matched - keeps prompt token cost bounded and predictable, same
-  /// reasoning as ContextSummarizerService capping memory at 15 entries.
-  static const _maxTotalFacts = 12;
+  static const _maxTotalFacts = 15;
+  static const _maxContextChars = 1200; // ~300 tokens, keeps prompt cost low
 
   Future<String> buildDomainContext({
     required String userId,
     required List<String> tags,
   }) async {
-    if (tags.isEmpty) return '';
+    // ┌─────────────────────────────────────────────────────────┐
+    // │ FIX: Use 'late' so Dart knows it will be assigned in   │
+    // │ the try block below.                                    │
+    // └─────────────────────────────────────────────────────────┘
+    late List<KnowledgeEntry> matched;
 
-    List<KnowledgeEntry> matched;
     try {
-      matched = await _repo.queryAllLayers(userId: userId, tags: tags);
+      if (tags.isEmpty) {
+        // Fallback: If no tags, pull the 5 most recently used facts
+        // ignore: avoid_print
+        print('⚠️ No tags provided. Falling back to recent facts.');
+        matched = await _repo.getRecentFacts(userId, limit: 5);
+      } else {
+        matched = await _repo.queryAllLayers(userId: userId, tags: tags);
+      }
     } catch (e) {
-      // Retrieval failing shouldn't block the agent from running - it
-      // just runs without extra context, same as RssController treating
-      // a saved-source load failure as non-fatal. Logged (not silent)
-      // so this failure mode is actually visible during development -
-      // KnowledgeRepository.queryLayer already handles the common
-      // missing-index case itself, so anything reaching here is
-      // unexpected and worth looking at.
       // ignore: avoid_print
       print('KnowledgeRetrievalService.buildDomainContext failed: $e');
       return '';
@@ -44,14 +38,31 @@ class KnowledgeRetrievalService {
 
     if (matched.isEmpty) return '';
 
+    // Sort by importance
     matched.sort((a, b) => b.importance.compareTo(a.importance));
-    final selected = matched.take(_maxTotalFacts).toList();
 
-    // Fire-and-forget - don't block the response on updating
-    // lastUsedAt for each matched entry.
-    for (final entry in selected) {
+    final selected = <KnowledgeEntry>[];
+    int currentChars = 0;
+
+    // Iterate and add facts until we hit the character or count limit
+    for (final entry in matched) {
+      if (selected.length >= _maxTotalFacts) break;
+
+      final entryLength = entry.fact.length + 10; // +10 for formatting
+      if (currentChars + entryLength > _maxContextChars) break;
+
+      selected.add(entry);
+      currentChars += entryLength;
+
+      // Fire-and-forget lastUsedAt update
       // ignore: unawaited_futures
-      _repo.touchLastUsed(userId, entry);
+      _repo.touchLastUsed(userId, entry).catchError((e) {
+        // ignore: avoid_print
+        print(
+          'KnowledgeRetrievalService: touchLastUsed failed for '
+          '${entry.id}: $e',
+        );
+      });
     }
 
     final byLayer = <String, List<KnowledgeEntry>>{};
@@ -59,7 +70,13 @@ class KnowledgeRetrievalService {
       byLayer.putIfAbsent(entry.layer, () => []).add(entry);
     }
 
-    final buffer = StringBuffer('Relevant knowledge about the user:');
+    // ┌─────────────────────────────────────────────────────────┐
+    // │ FIX: Instruct the AI to ONLY use facts relevant to the  │
+    // │ specific question, rather than reciting everything.     │
+    // └─────────────────────────────────────────────────────────┘
+    final buffer = StringBuffer(
+      'Background knowledge (Only use the specific facts from this list that are necessary to answer the user\'s current question. Do not mention unrelated facts):',
+    );
     for (final layer in byLayer.keys) {
       buffer.writeln();
       buffer.writeln('$layer:');

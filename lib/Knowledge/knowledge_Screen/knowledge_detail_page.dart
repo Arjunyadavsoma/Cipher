@@ -1,121 +1,157 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mimir_ai/Knowledge/knowledge_entry.dart';
+import 'package:mimir_ai/Knowledge/knowledge_Screen/knowledge_provider.dart';
 
-
-class KnowledgeDetailPage extends StatelessWidget {
-  const KnowledgeDetailPage({
-    super.key,
-    required this.entry,
-  });
-
+class KnowledgeDetailPage extends ConsumerWidget {
+  const KnowledgeDetailPage({super.key, required this.entry});
   final KnowledgeEntry entry;
 
+  String _capitalize(String text) {
+    if (text.isEmpty) return text;
+    return "${text[0].toUpperCase()}${text.substring(1)}";
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final uid = ref.watch(userIdProvider);
+
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("Knowledge"),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                entry.fact,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          Text(
-            "Layer",
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-
-          const SizedBox(height: 8),
-
-          Chip(
-            label: Text(entry.layer),
-          ),
-
-          const SizedBox(height: 20),
-
-          Text(
-            "Tags",
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-
-          const SizedBox(height: 8),
-
-          if (entry.tags.isEmpty)
-            const Text("No tags")
-          else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: entry.tags
-                  .map(
-                    (tag) => Chip(
-                      label: Text(tag),
-                    ),
-                  )
-                  .toList(),
-            ),
-
-          const SizedBox(height: 20),
-
-          Text(
-            "Importance",
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-
-          const SizedBox(height: 8),
-
-          LinearProgressIndicator(
-            value: entry.importance,
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(8),
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            "${(entry.importance * 100).toStringAsFixed(0)}%",
-          ),
-
-          const SizedBox(height: 20),
-
-          Text(
-            "Created",
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-
-          const SizedBox(height: 6),
-
-          Text(
-            entry.createdAt.toLocal().toString(),
-          ),
-
-          const SizedBox(height: 20),
-
-          Text(
-            "Last Used",
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-
-          const SizedBox(height: 6),
-
-          Text(
-            entry.lastUsedAt == null
-                ? "Never"
-                : entry.lastUsedAt!.toLocal().toString(),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: const Text("Memory Detail", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+            onPressed: () async {
+              await ref.read(knowledgeRepositoryProvider).deleteEntry(
+                    userId: uid!,
+                    layer: entry.layer,
+                    entryId: entry.id,
+                  );
+              if (context.mounted) Navigator.pop(context);
+            },
           ),
         ],
       ),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          Text(
+            entry.fact,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              height: 1.3,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 32),
+          
+          _SectionTitle("Layer"),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              _capitalize(entry.layer),
+              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          if (entry.tags.isNotEmpty) ...[
+            _SectionTitle("Tags"),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: entry.tags.map((tag) => 
+                Chip(
+                  label: Text('#$tag'),
+                  backgroundColor: Colors.grey.shade100,
+                  side: BorderSide.none,
+                  labelStyle: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w500),
+                )
+              ).toList(),
+            ),
+            const SizedBox(height: 24),
+          ],
+          
+          _SectionTitle("Importance"),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: entry.importance,
+              minHeight: 8,
+              backgroundColor: Colors.grey.shade200,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "${(entry.importance * 100).toStringAsFixed(0)}%",
+            style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold),
+          ),
+          
+          const SizedBox(height: 32),
+          
+          _RowDetail(title: "Created", value: entry.createdAt.toLocal().toString().split('.').first),
+          const SizedBox(height: 16),
+          _RowDetail(
+            title: "Last Used", 
+            value: entry.lastUsedAt == null ? "Never" : entry.lastUsedAt!.toLocal().toString().split('.').first
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String text;
+  const _SectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.toUpperCase(),
+      style: TextStyle(
+        fontSize: 13,
+        color: Colors.grey.shade500,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+}
+
+class _RowDetail extends StatelessWidget {
+  final String title;
+  final String value;
+  const _RowDetail({required this.title, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: TextStyle(fontSize: 13, color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(fontSize: 16, color: Colors.black87)),
+      ],
     );
   }
 }

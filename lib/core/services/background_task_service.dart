@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:mimir_ai/features/agents/DSA_agent/dsa_agent.dart';
-import 'package:mimir_ai/features/agents/core/tool_manager.dart';
 import 'package:mimir_ai/features/agents/models/execution_context.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -55,7 +54,6 @@ void callbackDispatcher() {
 
 Future<void> _fetchDsaPotdAndNotify(String userId) async {
   // 1. Access the ToolManager Singleton
-  final toolManager = ToolManager.instance;
   
   // 2. CRITICAL: Register your tools in this background isolate!
   // Because this is a separate isolate, the tools registered in main.dart 

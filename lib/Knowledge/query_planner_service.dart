@@ -1,79 +1,107 @@
 import 'dart:convert';
 
+import 'package:mimir_ai/Knowledge/knowledge_entry.dart';
 import 'package:mimir_ai/features/agents/core/agent_registry.dart';
 
 import '../../../core/services/groq/chat_service.dart';
 
 import 'query_plan.dart';
 
-/// Replaces IntentGate + IntentClassifier with a single classification
-/// call. Same latency budget as the old two-call flow, but the model
-/// also returns which knowledge tags are relevant and what new facts
-/// (if any) are worth remembering - both previously separate concerns
-/// (ContextSummarizerService.isMemoryTrigger did memory detection with
-/// a keyword list; this folds that into the same call as routing).
+/// Single classification call that replaces IntentGate + IntentClassifier.
+/// One Groq call returns: which agent handles the message, required tags
+/// for retrieval, new facts worth remembering, and old facts to forget.
 class QueryPlannerService {
   QueryPlannerService._internal();
 
   static final QueryPlannerService instance = QueryPlannerService._internal();
 
-  static const String _routingSystemPrompt =
-      "You are a routing and knowledge-planning classifier, not a "
-      "conversational assistant. You only ever output a single JSON "
-      "object matching the schema you are given. Never add explanation, "
-      "caveats, or text outside the JSON object.";
+  static const _routingSystemPrompt = '''
+You are an AI routing engine.
+
+Output exactly one JSON object. Never use markdown. Never explain.
+Never write any text before or after the JSON.
+
+Required schema:
+{
+  "agent": "string",
+  "confidence": 0.0,
+  "requiredKnowledgeTags": ["string"],
+  "thingsToRemember": ["string"],
+  "thingsToForget": ["string"],
+  "query": "string"
+}
+
+CRITICAL RULES:
+- "requiredKnowledgeTags" MUST be an array of 1-4 lowercase strings. Example: ["job", "work"]
+- "thingsToRemember" MUST be an array of simple strings. Example: ["User works at Google"]
+- "thingsToForget" MUST be an array of simple strings. Example: ["User works at Stripe"]
+- DO NOT use nested objects.
+- thingsToForget contains OLD facts that are now false or corrected. Write them as the exact short fact string.
+''';
 
   Future<QueryPlan> plan(String message) async {
     final agents = AgentRegistry.instance.getAllAgents();
-    final agentDescriptions =
-        agents.map((a) => "${a.name}:\n${a.description}").join('\n\n');
+    final agentDescriptions = agents
+        .map((a) => "${a.name}:\n${a.description}")
+        .join('\n\n');
 
     final prompt = _buildPrompt(message, agentDescriptions);
 
     try {
       final response = await ChatService.instance.sendMessage(
         message: prompt,
-        history: const [],
         systemPrompt: _routingSystemPrompt,
-        temperature: 0.1,
+        temperature: 0,
+        model: "llama-3.1-8b-instant",
       );
 
       final jsonStr = _extractJson(response);
       final parsed = jsonDecode(jsonStr) as Map<String, dynamic>;
 
       return QueryPlan.fromJson(parsed, message);
-    } catch (_) {
+    } catch (e) {
+      // ignore: avoid_print
+      print('QueryPlannerService.plan failed, using fallback: $e');
       return QueryPlan.fallback(message);
     }
   }
 
-  String _buildPrompt(String message, String agentDescriptions) {
+      String _buildPrompt(String message, String agentDescriptions) {
+    final tagList = KnowledgeTaxonomy.allTags.map((t) => '"$t"').join(', ');
+    
     return "Available agents:\n\n$agentDescriptions\n\n"
-        "Available knowledge layers: personal, professional, preferences, "
-        "technical, projects, general.\n\n"
         "Analyze this message:\n\"$message\"\n\n"
         "Determine:\n"
-        "1. Which agent should handle it (by exact name).\n"
+        "1. Which agent should handle it (exact name match).\n"
         "2. Your confidence (0.0-1.0).\n"
-        "3. Which short knowledge tags (single words or short phrases, "
-        "e.g. \"job\", \"email_style\", \"diet\") would help answer this - "
-        "empty list if none needed.\n"
-        "4. Any new facts stated in this message worth remembering "
-        "long-term, written as short standalone sentences - empty list "
-        "if nothing new/memorable was said. Do NOT invent facts.\n"
-        "5. The user's query, lightly cleaned of filler if needed "
-        "(otherwise just repeat it).\n\n"
-        "Return JSON only, no other text, in this exact shape:\n"
-        '{"agent":"<agent name>","confidence":0.0,'
-        '"requiredKnowledgeTags":["tag1","tag2"],'
-        '"thingsToRemember":["fact1"],'
-        '"query":"<cleaned query>"}';
+        "3. requiredKnowledgeTags: 1-2 tags from this EXACT list: [$tagList]. "
+        "If the user asks 'what projects am I working on', use [\"project\"]. "
+        "If the user asks 'help me with graphs', use [\"dsa_topic\"]. "
+        "If the user asks 'what's my email rule', use [\"email_rule\"].\n"
+        "4. thingsToRemember: NEW facts as simple strings. Example: [\"User is practicing Dynamic Programming for interviews\"]\n"
+        "5. query: The user's cleaned request.\n\n"
+        "Example:\n"
+        "User says: 'I am prepping for DSA interviews using Grind 75.'\n"
+        "{\"agent\":\"Default Chat Agent\",\"confidence\":0.9,\"requiredKnowledgeTags\":[\"interview_prep\",\"dsa_topic\"],\"thingsToRemember\":[\"User is prepping for DSA interviews using Grind 75\"],\"query\":\"I am prepping for DSA interviews using Grind 75.\"}\n\n"
+        "Return JSON ONLY:";
   }
 
+  /// Strips markdown code fences if the model wraps its output in them
+  /// despite instructions not to, then extracts the {...} span.
   String _extractJson(String text) {
-    final start = text.indexOf('{');
-    final end = text.lastIndexOf('}');
-    if (start == -1 || end == -1) return '{}';
-    return text.substring(start, end + 1);
+    var cleaned = text.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned
+          .replaceFirst(RegExp(r'^```[a-zA-Z]*\n?'), '')
+          .replaceFirst(RegExp(r'```\s*$'), '')
+          .trim();
+    }
+
+    final start = cleaned.indexOf('{');
+    final end = cleaned.lastIndexOf('}');
+    if (start == -1 || end == -1 || end < start) {
+      throw const FormatException('No JSON object found in response');
+    }
+    return cleaned.substring(start, end + 1);
   }
 }

@@ -6,6 +6,7 @@ import '../widgets/chat_input.dart';
 import '../widgets/conversation_view.dart';
 import '../widgets/drawer_view.dart';
 import '../widgets/suggestion_cards.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});

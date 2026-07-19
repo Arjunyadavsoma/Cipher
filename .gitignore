@@ -9,6 +9,7 @@ ios/Runner/GoogleService-Info.plist
 *.log
 *.pyc
 *.swp
+build/app/outputs/
 .DS_Store
 .atom/
 .build/

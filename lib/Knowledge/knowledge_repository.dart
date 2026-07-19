@@ -1,17 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart' show FirebaseException;
-
 import 'knowledge_entry.dart';
 
-/// Firestore access for layered knowledge:
-///   users/{uid}/knowledge/{layer}/entries/{entryId}
-///
-/// Mirrors AgentMemoryRepository's convention of being the one seam that
-/// touches this collection - callers (KnowledgeRetrievalService,
-/// KnowledgeWriteService) never build Firestore paths themselves.
 class KnowledgeRepository {
   KnowledgeRepository._internal();
-
   static final KnowledgeRepository instance = KnowledgeRepository._internal();
 
   final _db = FirebaseFirestore.instance;
@@ -33,20 +24,9 @@ class KnowledgeRepository {
     required KnowledgeEntry entry,
   }) async {
     final doc = await _entriesRef(userId, entry.layer).add(entry.toMap());
-    return entry.copyWith();
+    return entry.copyWith(id: doc.id);
   }
 
-  /// Queries a single layer for entries matching any of [tags], ranked
-  /// by importance, capped at [limit]. Firestore's arrayContainsAny
-  /// caps at 10 values, so callers should keep tag lists tight.
-  ///
-  /// Combining `arrayContainsAny` with `orderBy` on a different field
-  /// (importance) requires a Firestore composite index. Until that
-  /// index is created in the Firebase console, this query throws
-  /// `failed-precondition` on every call - caught below so one missing
-  /// index doesn't silently zero out retrieval, and logged so it's
-  /// actually visible instead of vanishing into KnowledgeRetrievalService's
-  /// catch-all.
   Future<List<KnowledgeEntry>> queryLayer({
     required String userId,
     required String layer,
@@ -89,21 +69,15 @@ class KnowledgeRepository {
     }
   }
 
-  /// Fallback used when the composite index above doesn't exist yet.
-  /// Fetches by tag match alone (no server-side order), then sorts by
-  /// importance client-side. Only approximates "top N by importance"
-  /// when a layer has more matches than [limit] - the real fix is
-  /// still creating the composite index.
   Future<List<KnowledgeEntry>> _queryLayerWithoutIndex(
     String userId,
     String layer,
     List<String> tags,
     int limit,
   ) async {
-    final snapshot = await _entriesRef(
-      userId,
-      layer,
-    ).where('tags', arrayContainsAny: tags).get();
+    final snapshot = await _entriesRef(userId, layer)
+        .where('tags', arrayContainsAny: tags)
+        .get();
 
     final entries = snapshot.docs
         .map((d) => KnowledgeEntry.fromMap(d.id, d.data()))
@@ -113,9 +87,6 @@ class KnowledgeRepository {
     return entries.take(limit).toList();
   }
 
-  /// Queries every layer for [tags] in one pass. Runs layer queries
-  /// concurrently rather than sequentially - six small queries in
-  /// parallel is far cheaper latency-wise than six in series.
   Future<List<KnowledgeEntry>> queryAllLayers({
     required String userId,
     required List<String> tags,
@@ -138,6 +109,8 @@ class KnowledgeRepository {
   }
 
   Future<void> touchLastUsed(String userId, KnowledgeEntry entry) async {
+    if (entry.id.isEmpty) return;
+
     await _entriesRef(userId, entry.layer).doc(entry.id).set(
       {'lastUsedAt': DateTime.now().toIso8601String()},
       SetOptions(merge: true),
@@ -150,5 +123,65 @@ class KnowledgeRepository {
     required String entryId,
   }) async {
     await _entriesRef(userId, layer).doc(entryId).delete();
+  }
+
+  /// Deletes all entries in a layer that match ANY of the provided tags.
+  /// Used to overwrite old singular attributes (like job or location) 
+  /// when a user states a new fact with the same tags.
+  Future<void> deleteByTags(
+    String userId,
+    String layer,
+    List<String> tags,
+  ) async {
+    if (tags.isEmpty) return;
+
+    final snapshot = await _entriesRef(userId, layer)
+        .where('tags', arrayContainsAny: tags)
+        .get();
+
+    for (final doc in snapshot.docs) {
+      await doc.reference.delete();
+    }
+  }
+    /// Fallback: Gets the most recently used facts across ALL layers.
+  /// Used when the planner fails to generate tags.
+  Future<List<KnowledgeEntry>> getRecentFacts(String userId, {int limit = 5}) async {
+    final results = await Future.wait(
+      KnowledgeLayers.all.map((layer) => _entriesRef(userId, layer).get()),
+    );
+
+    final allEntries = <KnowledgeEntry>[];
+    for (final snapshot in results) {
+      allEntries.addAll(snapshot.docs.map((d) => KnowledgeEntry.fromMap(d.id, d.data())));
+    }
+
+    // Sort by lastUsedAt (if available), otherwise by createdAt
+    allEntries.sort((a, b) {
+      final aTime = a.lastUsedAt ?? a.createdAt;
+      final bTime = b.lastUsedAt ?? b.createdAt;
+      return bTime.compareTo(aTime);
+    });
+
+    return allEntries.take(limit).toList();
+  }
+    /// Returns all knowledge entries in a layer (for UI).
+  Future<List<KnowledgeEntry>> getAllEntries(String userId, String layer) async {
+    final snapshot = await _entriesRef(userId, layer)
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => KnowledgeEntry.fromMap(doc.id, doc.data()))
+        .toList();
+  }
+
+  /// Realtime stream of entries (for UI).
+  Stream<List<KnowledgeEntry>> watchEntries(String userId, String layer) {
+    return _entriesRef(userId, layer)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => KnowledgeEntry.fromMap(doc.id, doc.data()))
+            .toList());
   }
 }
