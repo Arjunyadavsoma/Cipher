@@ -18,7 +18,7 @@ class DefaultChatAgent implements BaseAgent {
 
   @override
   String get systemPrompt =>
-      'You are Mimir AI, a helpful personal AI assistant.';
+      'You are cipher AI, a helpful personal AI assistant.';
 
   @override
   List<String> get tools => ['groq'];
@@ -28,8 +28,9 @@ class DefaultChatAgent implements BaseAgent {
 
   @override
   Future<AgentExecutionResult> execute(ExecutionContext context) async {
-    final history =
-        context.recentMessages.map((m) => m.toGroqFormat()).toList();
+    final history = context.recentMessages
+        .map((m) => m.toGroqFormat())
+        .toList();
 
     final response = await ToolManager.instance.executeTool('groq', {
       'systemPrompt': systemPrompt,

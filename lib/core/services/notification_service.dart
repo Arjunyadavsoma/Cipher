@@ -1,19 +1,15 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart'; // NEW
-import 'package:mimir_ai/app/app.dart'; // NEW
+import 'package:cipher_ai/app/app.dart'; // NEW
 
 class NotificationService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  static final FlutterLocalNotificationsPlugin _localNotifications = 
+  static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
   static Future<void> initialize() async {
-    await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    await _messaging.requestPermission(alert: true, badge: true, sound: true);
 
     const channel = AndroidNotificationChannel(
       'high_importance_channel',
@@ -24,10 +20,13 @@ class NotificationService {
 
     await _localNotifications
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(channel);
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const iosSettings = DarwinInitializationSettings();
 
     await _localNotifications.initialize(
@@ -58,7 +57,7 @@ class NotificationService {
 
     await _localNotifications.show(
       message.hashCode,
-      notification?.title ?? "Mimir AI",
+      notification?.title ?? "cipher AI",
       notification?.body ?? "",
       const NotificationDetails(
         android: AndroidNotificationDetails(
@@ -79,7 +78,7 @@ class NotificationService {
     String? payload,
   }) async {
     await _localNotifications.show(
-      DateTime.now().millisecondsSinceEpoch % 100000, 
+      DateTime.now().millisecondsSinceEpoch % 100000,
       title,
       body,
       const NotificationDetails(

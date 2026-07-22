@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.arjun.mimirai"
+    namespace = "com.arjun.cipher"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +21,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.arjun.mimirai"
+        applicationId = "com.arjun.cipher"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

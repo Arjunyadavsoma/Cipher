@@ -1,4 +1,4 @@
-import 'package:mimir_ai/core/services/supabase/supabase_service.dart';
+import 'package:cipher_ai/core/services/supabase/supabase_service.dart';
 
 import '../models/rss_feed_source.dart';
 

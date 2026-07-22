@@ -1,5 +1,5 @@
 import 'package:http/http.dart' as http;
-import 'package:mimir_ai/features/agents/models/tool.dart';
+import 'package:cipher_ai/features/agents/models/tool.dart';
 
 /// Generic HTTP fetch for agents that need to pull raw external content
 /// (e.g. GfgFetchService scraping the GeeksforGeeks Problem of the Day
@@ -39,11 +39,11 @@ class HttpTool implements Tool {
 
     final response = method == 'POST'
         ? await http
-            .post(uri, headers: headers, body: input['body'])
-            .timeout(const Duration(seconds: 20))
-        : await http.get(uri, headers: headers).timeout(
-              const Duration(seconds: 20),
-            );
+              .post(uri, headers: headers, body: input['body'])
+              .timeout(const Duration(seconds: 20))
+        : await http
+              .get(uri, headers: headers)
+              .timeout(const Duration(seconds: 20));
 
     if (response.statusCode != 200) {
       throw Exception('HttpTool: HTTP ${response.statusCode} for $url');

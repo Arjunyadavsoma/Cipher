@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mimir_ai/app/features/rss/models/rss_source)chips.dart';
-import 'package:mimir_ai/app/features/rss/view/pages/rss_provider.dart';
+import 'package:cipher_ai/app/features/rss/models/rss_source)chips.dart';
+import 'package:cipher_ai/app/features/rss/view/pages/rss_provider.dart';
 
 import '../../controller/rss_controller.dart';
 import '../widgets/rss_article_card.dart';
@@ -208,9 +208,7 @@ class _RssPageState extends ConsumerState<RssPage> {
                       return;
                     }
                     ref
-                        .read(
-                          rssControllerProvider(widget.userId).notifier,
-                        )
+                        .read(rssControllerProvider(widget.userId).notifier)
                         .addCustomSource(
                           name: nameController.text.trim(),
                           feedUrl: urlController.text.trim(),
@@ -253,8 +251,10 @@ class _AddSourceField extends StatelessWidget {
         labelStyle: const TextStyle(color: Color(0xFF6B6B6B)),
         filled: true,
         fillColor: Colors.white,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Color(0xFFE5E5E3)),

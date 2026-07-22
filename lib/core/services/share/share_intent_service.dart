@@ -25,7 +25,7 @@ class IncomingShare {
 ///
 /// Handles both ways Android delivers a share:
 ///  - cold start: the app was closed and got launched BY the share
-///    (user tapped "Mimir AI" in the "Share via..." sheet) -> [consumeInitial]
+///    (user tapped "cipher AI" in the "Share via..." sheet) -> [consumeInitial]
 ///  - warm start: the app was already running and received a new share
 ///    while alive -> [stream]
 class ShareIntentService {

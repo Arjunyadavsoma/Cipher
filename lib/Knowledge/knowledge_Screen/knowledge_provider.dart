@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mimir_ai/Knowledge/knowledge_entry.dart';
-import 'package:mimir_ai/Knowledge/knowledge_repository.dart';
-import 'package:mimir_ai/Knowledge/knowledge_write_service.dart';
+import 'package:cipher_ai/Knowledge/knowledge_entry.dart';
+import 'package:cipher_ai/Knowledge/knowledge_repository.dart';
+import 'package:cipher_ai/Knowledge/knowledge_write_service.dart';
 
 /// Repository
 final knowledgeRepositoryProvider = Provider<KnowledgeRepository>((ref) {
@@ -50,7 +50,9 @@ final filteredKnowledgeEntriesProvider = Provider<List<KnowledgeEntry>>((ref) {
 
   return entries.where((entry) {
     final matchesFact = entry.fact.toLowerCase().contains(query);
-    final matchesTag = entry.tags.any((tag) => tag.toLowerCase().contains(query));
+    final matchesTag = entry.tags.any(
+      (tag) => tag.toLowerCase().contains(query),
+    );
     return matchesFact || matchesTag;
   }).toList();
 });

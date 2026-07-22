@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:mimir_ai/Knowledge/knowledge_entry.dart';
-import 'package:mimir_ai/features/agents/core/agent_registry.dart';
+import 'package:cipher_ai/Knowledge/knowledge_entry.dart';
+import 'package:cipher_ai/features/agents/core/agent_registry.dart';
 
 import '../../../core/services/groq/chat_service.dart';
 
@@ -66,9 +66,9 @@ CRITICAL RULES:
     }
   }
 
-      String _buildPrompt(String message, String agentDescriptions) {
+  String _buildPrompt(String message, String agentDescriptions) {
     final tagList = KnowledgeTaxonomy.allTags.map((t) => '"$t"').join(', ');
-    
+
     return "Available agents:\n\n$agentDescriptions\n\n"
         "Analyze this message:\n\"$message\"\n\n"
         "Determine:\n"
@@ -78,7 +78,7 @@ CRITICAL RULES:
         "If the user asks 'what projects am I working on', use [\"project\"]. "
         "If the user asks 'help me with graphs', use [\"dsa_topic\"]. "
         "If the user asks 'what's my email rule', use [\"email_rule\"].\n"
-        "4. thingsToRemember: NEW facts as simple strings. Example: [\"User is practicing Dynamic Programming for interviews\"]\n"
+        "4. thingsToRemember: NEW facts as simple strings.ONLY extract permanent,long term facts about user. Example: [\"User is practicing Dynamic Programming for interviews\"]\n"
         "5. query: The user's cleaned request.\n\n"
         "Example:\n"
         "User says: 'I am prepping for DSA interviews using Grind 75.'\n"

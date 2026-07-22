@@ -9,8 +9,7 @@ class LayerClassifierService {
   static const String _systemPrompt =
       "You are an enterprise knowledge graph classifier. You output exactly one JSON object. Never add explanation.";
 
-  Future<ClassifiedFact> classify(String fact) async {
-    // Provide the strict list to the LLM
+    Future<ClassifiedFact> classify(String fact) async {
     final tagList = KnowledgeTaxonomy.allTags.map((t) => '"$t"').join(', ');
     
     final prompt = "Fact: \"$fact\"\n\n"
@@ -34,19 +33,26 @@ class LayerClassifierService {
       final rawTags = List<String>.from(parsed['tags'] as List? ?? const []);
       
       // Filter out any hallucinated tags not in our strict dictionary
-      final validTags = rawTags
+      var validTags = rawTags
           .map((t) => t.toString().toLowerCase().trim())
           .where((t) => KnowledgeTaxonomy.allTags.contains(t))
           .toSet()
           .toList();
 
+      // ┌─────────────────────────────────────────────────────────┐
+      // │ SMART FALLBACK: If LLM fails, guess based on keywords   │
+      // └─────────────────────────────────────────────────────────┘
       if (validTags.isEmpty) {
-        // Fallback: If the LLM fails, dump it in general with no tags
-        return ClassifiedFact(
-          layer: KnowledgeLayers.general,
-          tags: [],
-          overwrite: false,
-        );
+        final factLower = fact.toLowerCase();
+        if (factLower.contains('dsa') || factLower.contains('interview') || factLower.contains('algorithm')) {
+          validTags.add(KnowledgeTaxonomy.dsaTopic);
+        } else if (factLower.contains('project') || factLower.contains('app') || factLower.contains('code')) {
+          validTags.add(KnowledgeTaxonomy.project);
+        } else if (factLower.contains('job') || factLower.contains('work') || factLower.contains('engineer')) {
+          validTags.add(KnowledgeTaxonomy.currentJob);
+        } else {
+          validTags.add('hobby'); // Ultimate fallback
+        }
       }
 
       // Deterministic logic: The tag decides the layer and overwrite status
@@ -62,7 +68,7 @@ class LayerClassifierService {
     } catch (_) {
       return ClassifiedFact(
         layer: KnowledgeLayers.general,
-        tags: [],
+        tags: [KnowledgeTaxonomy.hobby],
         overwrite: false,
       );
     }

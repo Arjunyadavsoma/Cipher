@@ -3,8 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:mimir_ai/core/services/voice/voice_recorder_service.dart';
-
+import 'package:cipher_ai/core/services/voice/voice_recorder_service.dart';
 
 class ChatInput extends StatefulWidget {
   final TextEditingController controller;
@@ -48,9 +47,9 @@ class _ChatInputState extends State<ChatInput> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Microphone error: $e")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Microphone error: $e")));
       }
     }
   }
@@ -216,7 +215,7 @@ class _ChatInputState extends State<ChatInput> {
             textAlignVertical: TextAlignVertical.center,
             textCapitalization: TextCapitalization.sentences,
             decoration: const InputDecoration(
-              hintText: "Ask Mimir",
+              hintText: "Ask cipher",
               border: InputBorder.none,
               isDense: true,
               contentPadding: EdgeInsets.symmetric(vertical: 14),
@@ -330,7 +329,10 @@ class _PendingAttachmentChip extends StatelessWidget {
                   fileName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
               const SizedBox(width: 6),

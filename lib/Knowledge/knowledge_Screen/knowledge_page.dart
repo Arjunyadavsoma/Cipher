@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mimir_ai/Knowledge/knowledge_entry.dart';
-import 'package:mimir_ai/Knowledge/knowledge_Screen/knowledge_detail_page.dart'
+import 'package:cipher_ai/Knowledge/knowledge_entry.dart';
+import 'package:cipher_ai/Knowledge/knowledge_Screen/knowledge_detail_page.dart'
     as knowledge;
-import 'package:mimir_ai/Knowledge/knowledge_Screen/knowledge_provider.dart';
-import 'package:mimir_ai/Knowledge/knowledge_Screen/add_knowledge_sheet.dart';
-import 'package:mimir_ai/Knowledge/knowledge_Screen/knowledge_detail_page.dart';
+import 'package:cipher_ai/Knowledge/knowledge_Screen/knowledge_provider.dart';
+import 'package:cipher_ai/Knowledge/knowledge_Screen/add_knowledge_sheet.dart';
+import 'package:cipher_ai/Knowledge/knowledge_Screen/knowledge_detail_page.dart';
 
 class KnowledgePage extends ConsumerWidget {
   const KnowledgePage({super.key});
@@ -27,7 +27,10 @@ class KnowledgePage extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
-        title: const Text('Explore Memory', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Explore Memory',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         centerTitle: false,
         elevation: 0,
       ),
@@ -44,11 +47,9 @@ class KnowledgePage extends ConsumerWidget {
             ),
             builder: (context) => AddKnowledgeSheet(
               onSave: (text) async {
-                await ref.read(knowledgeWriteServiceProvider).saveFacts(
-                      uid!,
-                      [text],
-                      importance: 0.8,
-                    );
+                await ref.read(knowledgeWriteServiceProvider).saveFacts(uid!, [
+                  text,
+                ], importance: 0.8);
               },
             ),
           );
@@ -91,10 +92,14 @@ class KnowledgePage extends ConsumerWidget {
                   padding: const EdgeInsets.only(right: 10),
                   child: GestureDetector(
                     onTap: () {
-                      ref.read(selectedKnowledgeLayerProvider.notifier).state = layer;
+                      ref.read(selectedKnowledgeLayerProvider.notifier).state =
+                          layer;
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: selected ? Colors.black : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(20),
@@ -120,9 +125,16 @@ class KnowledgePage extends ConsumerWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.memory, size: 48, color: Colors.grey.shade300),
+                        Icon(
+                          Icons.memory,
+                          size: 48,
+                          color: Colors.grey.shade300,
+                        ),
                         const SizedBox(height: 12),
-                        Text('No memories in this layer yet.', style: TextStyle(color: Colors.grey.shade400)),
+                        Text(
+                          'No memories in this layer yet.',
+                          style: TextStyle(color: Colors.grey.shade400),
+                        ),
                       ],
                     ),
                   )
@@ -151,29 +163,47 @@ class _AppStoreTile extends StatelessWidget {
 
   IconData _iconForLayer(String layer) {
     switch (layer) {
-      case 'professional': return Icons.work_outline;
-      case 'technical': return Icons.code;
-      case 'projects': return Icons.folder_open;
-      case 'personal': return Icons.person_outline;
-      case 'preferences': return Icons.tune;
-      case 'education': return Icons.school_outlined;
-      case 'schedule': return Icons.calendar_month_outlined;
-      case 'automations': return Icons.bolt_outlined;
-      default: return Icons.lightbulb_outline;
+      case 'professional':
+        return Icons.work_outline;
+      case 'technical':
+        return Icons.code;
+      case 'projects':
+        return Icons.folder_open;
+      case 'personal':
+        return Icons.person_outline;
+      case 'preferences':
+        return Icons.tune;
+      case 'education':
+        return Icons.school_outlined;
+      case 'schedule':
+        return Icons.calendar_month_outlined;
+      case 'automations':
+        return Icons.bolt_outlined;
+      default:
+        return Icons.lightbulb_outline;
     }
   }
 
   Color _colorForLayer(String layer) {
     switch (layer) {
-      case 'professional': return Colors.blue.shade50;
-      case 'technical': return Colors.purple.shade50;
-      case 'projects': return Colors.orange.shade50;
-      case 'personal': return Colors.green.shade50;
-      case 'preferences': return Colors.pink.shade50;
-      case 'education': return Colors.yellow.shade50;
-      case 'schedule': return Colors.red.shade50;
-      case 'automations': return Colors.teal.shade50;
-      default: return Colors.grey.shade100;
+      case 'professional':
+        return Colors.blue.shade50;
+      case 'technical':
+        return Colors.purple.shade50;
+      case 'projects':
+        return Colors.orange.shade50;
+      case 'personal':
+        return Colors.green.shade50;
+      case 'preferences':
+        return Colors.pink.shade50;
+      case 'education':
+        return Colors.yellow.shade50;
+      case 'schedule':
+        return Colors.red.shade50;
+      case 'automations':
+        return Colors.teal.shade50;
+      default:
+        return Colors.grey.shade100;
     }
   }
 

@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:mimir_ai/app/features/rss/models/rss_source.dart';
-import 'package:mimir_ai/app/features/rss/models/rss_tool.dart';
+import 'package:cipher_ai/app/features/rss/models/rss_source.dart';
+import 'package:cipher_ai/app/features/rss/models/rss_tool.dart';
 import '../models/rss_article.dart';
 import '../models/rss_feed_source.dart';
 
@@ -23,8 +23,8 @@ class RssController extends ChangeNotifier {
     required this.userId,
     RssTool? rssTool,
     RssSourceRepository? sourceRepository,
-  })  : _rssTool = rssTool ?? RssTool(),
-        _sourceRepository = sourceRepository ?? RssSourceRepository();
+  }) : _rssTool = rssTool ?? RssTool(),
+       _sourceRepository = sourceRepository ?? RssSourceRepository();
 
   List<RssFeedSource> _sources = List.of(kSuggestedRssFeeds);
   List<RssFeedSource> get sources => _sources;

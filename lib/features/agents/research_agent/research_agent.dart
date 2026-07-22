@@ -41,7 +41,7 @@ class ResearchAgent implements BaseAgent {
 
   @override
   String get systemPrompt => '''
-You are the Research Agent inside Mimir AI. Classify the user's message into
+You are the Research Agent inside cipher AI. Classify the user's message into
 exactly one of these intents:
 
 - ANALYZE: user provides a paper (title, authors, DOI, URL) or pastes an
@@ -209,10 +209,12 @@ Always respond with JSON only, no other text, in this exact shape:
       sourceText = pastedContent;
     } else if (paperQuery.isNotEmpty) {
       try {
-        final found = await ToolManager.instance.executeTool('research', {
-          'type': 'lookup',
-          'query': paperQuery,
-        }) as Map<String, String>;
+        final found =
+            await ToolManager.instance.executeTool('research', {
+                  'type': 'lookup',
+                  'query': paperQuery,
+                })
+                as Map<String, String>;
 
         if (found.isEmpty) {
           return AgentExecutionResult(
@@ -251,13 +253,15 @@ Always respond with JSON only, no other text, in this exact shape:
 
     String analysis;
     try {
-      analysis = await ToolManager.instance.executeTool('groq', {
-        'systemPrompt':
-            'You are the Research Agent. Analyze academic papers clearly '
-            'and concisely, structured under short headers.',
-        'message': analysisPrompt,
-        'history': const [],
-      }) as String;
+      analysis =
+          await ToolManager.instance.executeTool('groq', {
+                'systemPrompt':
+                    'You are the Research Agent. Analyze academic papers clearly '
+                    'and concisely, structured under short headers.',
+                'message': analysisPrompt,
+                'history': const [],
+              })
+              as String;
     } catch (e) {
       return AgentExecutionResult(
         responseText:
@@ -299,7 +303,9 @@ Always respond with JSON only, no other text, in this exact shape:
     return AgentExecutionResult(
       responseText: responseText,
       agentName: name,
-      usedTools: paperQuery.isNotEmpty ? const ['research', 'groq'] : const ['groq'],
+      usedTools: paperQuery.isNotEmpty
+          ? const ['research', 'groq']
+          : const ['groq'],
     );
   }
 
@@ -321,8 +327,7 @@ Always respond with JSON only, no other text, in this exact shape:
       query = lastPaper['title'] as String? ?? '';
     } else {
       return AgentExecutionResult(
-        responseText:
-            "What topic or paper should I find related work for?",
+        responseText: "What topic or paper should I find related work for?",
         agentName: name,
       );
     }
@@ -338,11 +343,13 @@ Always respond with JSON only, no other text, in this exact shape:
 
     List<Map<String, String>> results;
     try {
-      results = await ToolManager.instance.executeTool('research', {
-        'type': 'search',
-        'query': query,
-        'maxResults': 10,
-      }) as List<Map<String, String>>;
+      results =
+          await ToolManager.instance.executeTool('research', {
+                'type': 'search',
+                'query': query,
+                'maxResults': 10,
+              })
+              as List<Map<String, String>>;
     } catch (e) {
       return AgentExecutionResult(
         responseText: "I couldn't search for related work — $e",
@@ -383,7 +390,9 @@ Always respond with JSON only, no other text, in this exact shape:
     buffer.writeln("Found ${results.length} related paper(s):");
     buffer.writeln();
     for (final r in results) {
-      buffer.writeln("- **${r['title']}**${r['year'] != null ? ' (${r['year']})' : ''}");
+      buffer.writeln(
+        "- **${r['title']}**${r['year'] != null ? ' (${r['year']})' : ''}",
+      );
       if ((r['snippet'] ?? '').isNotEmpty) buffer.writeln("  ${r['snippet']}");
     }
     if (memorySaveFailed) {
@@ -440,13 +449,15 @@ Always respond with JSON only, no other text, in this exact shape:
 
     String synthesis;
     try {
-      synthesis = await ToolManager.instance.executeTool('groq', {
-        'systemPrompt':
-            'You are the Research Agent. Propose specific, well-reasoned '
-            'future research directions grounded in the given material.',
-        'message': synthesisPrompt,
-        'history': const [],
-      }) as String;
+      synthesis =
+          await ToolManager.instance.executeTool('groq', {
+                'systemPrompt':
+                    'You are the Research Agent. Propose specific, well-reasoned '
+                    'future research directions grounded in the given material.',
+                'message': synthesisPrompt,
+                'history': const [],
+              })
+              as String;
     } catch (e) {
       return AgentExecutionResult(
         responseText:
@@ -468,13 +479,17 @@ Always respond with JSON only, no other text, in this exact shape:
   // ---------- CLASSIFICATION ----------
 
   Future<Map<String, dynamic>> _classify(ExecutionContext context) async {
-    final history = context.recentMessages.map((m) => m.toGroqFormat()).toList();
+    final history = context.recentMessages
+        .map((m) => m.toGroqFormat())
+        .toList();
 
-    final rawResponse = await ToolManager.instance.executeTool('groq', {
-      'systemPrompt': systemPrompt,
-      'message': _buildPrompt(context),
-      'history': history,
-    }) as String;
+    final rawResponse =
+        await ToolManager.instance.executeTool('groq', {
+              'systemPrompt': systemPrompt,
+              'message': _buildPrompt(context),
+              'history': history,
+            })
+            as String;
 
     final parsed = _parseJson(rawResponse);
     if (parsed.isEmpty) {

@@ -4,12 +4,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mimir_ai/Knowledge/knowledge_Screen/knowledge_page.dart';
-import 'package:mimir_ai/app/app.dart';
+import 'package:cipher_ai/Knowledge/knowledge_Screen/knowledge_page.dart';
+import 'package:cipher_ai/app/app.dart';
 
-import 'package:mimir_ai/app/features/auth/data/onboarding/screens/onboarding_page.dart';
-import 'package:mimir_ai/features/auth/presentation/forgot_password/check_email_page.dart';
-import 'package:mimir_ai/features/auth/presentation/forgot_password/forgot_password_page.dart';
+import 'package:cipher_ai/app/features/auth/data/onboarding/screens/onboarding_page.dart';
+import 'package:cipher_ai/features/auth/presentation/forgot_password/check_email_page.dart';
+import 'package:cipher_ai/features/auth/presentation/forgot_password/forgot_password_page.dart';
 
 import '../../features/auth/screens/login_page.dart';
 import '../../features/auth/screens/signup_page.dart';
@@ -22,9 +22,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: MimirAIApp.navigatorKey,
     initialLocation: "/",
-    refreshListenable: GoRouterRefreshStream(
-      auth.authStateChanges(),
-    ),
+    refreshListenable: GoRouterRefreshStream(auth.authStateChanges()),
 
     redirect: (context, state) {
       final user = auth.currentUser;
@@ -63,52 +61,28 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
 
     routes: [
-      GoRoute(
-        path: "/",
-        builder: (_, __) => const SplashPage(),
-      ),
-      GoRoute(
-  path: "/knowledge",
-  builder: (_, __) => const KnowledgePage(),
-),
+      GoRoute(path: "/", builder: (_, __) => const SplashPage()),
+      GoRoute(path: "/knowledge", builder: (_, __) => const KnowledgePage()),
 
-      GoRoute(
-        path: "/onboarding",
-        builder: (_, __) => const OnboardingPage(),
-      ),
+      GoRoute(path: "/onboarding", builder: (_, __) => const OnboardingPage()),
 
+      GoRoute(path: "/login", builder: (_, __) => const LoginPage()),
+
+      GoRoute(path: "/signup", builder: (_, __) => const SignupPage()),
       GoRoute(
-        path: "/login",
-        builder: (_, __) => const LoginPage(),
+        path: "/forgot-password",
+        builder: (context, state) => const ForgotPasswordPage(),
       ),
 
       GoRoute(
-        path: "/signup",
-        builder: (_, __) => const SignupPage(),
+        path: "/check-email",
+        builder: (context, state) {
+          final email = state.extra as String;
+
+          return CheckEmailPage(email: email);
+        },
       ),
-      GoRoute(
-  path: "/forgot-password",
-  builder: (context,state)=>
-      const ForgotPasswordPage(),
-),
-
-
-GoRoute(
-  path: "/check-email",
-  builder: (context,state){
-
-    final email =
-        state.extra as String;
-
-    return CheckEmailPage(
-      email: email,
-    );
-  },
-),
-      GoRoute(
-        path: "/dashboard",
-        builder: (_, __) => const HomePage(),
-      ),
+      GoRoute(path: "/dashboard", builder: (_, __) => const HomePage()),
     ],
   );
 });

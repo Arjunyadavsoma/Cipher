@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:mimir_ai/app/features/rss/models/rss_article.dart';
-import 'package:mimir_ai/app/features/rss/models/rss_feed_source.dart';
-import 'package:mimir_ai/app/features/rss/models/rss_source.dart';
+import 'package:cipher_ai/app/features/rss/models/rss_article.dart';
+import 'package:cipher_ai/app/features/rss/models/rss_feed_source.dart';
+import 'package:cipher_ai/app/features/rss/models/rss_source.dart';
 
 import '../core/base_agent.dart';
 import '../core/tool_manager.dart';
@@ -48,7 +48,7 @@ class NewsAgent implements BaseAgent {
 
   @override
   String get systemPrompt => '''
-You are the News Agent inside Mimir AI. Your role is to classify the
+You are the News Agent inside cipher AI. Your role is to classify the
 user's most recent message into exactly one of the intents below and
 extract the supporting fields.
 
@@ -127,21 +127,20 @@ Respond with JSON ONLY — no markdown fences, no commentary. Exact shape:
           return _handleSummarizeSource(context, parsed);
         case _Intent.other:
           return AgentExecutionResult(
-            responseText: (parsed['responseText'] as String?)
-                    ?.trim()
-                    .isNotEmpty ==
-                true
+            responseText:
+                (parsed['responseText'] as String?)?.trim().isNotEmpty == true
                 ? parsed['responseText'] as String
                 : "I can fetch your latest news or summarize a window of "
-                    "recent articles. Try \"latest news\", \"summarize the "
-                    "last 24 hours\", or \"summarize BBC\".",
+                      "recent articles. Try \"latest news\", \"summarize the "
+                      "last 24 hours\", or \"summarize BBC\".",
             agentName: name,
             usedTools: const ['groq'],
           );
       }
     } catch (e, st) {
       return AgentExecutionResult(
-        responseText: "I ran into a problem handling that news request. Please try again in a moment.",
+        responseText:
+            "I ran into a problem handling that news request. Please try again in a moment.",
         agentName: name,
         success: false,
         errorMessage: '$e\n$st',
@@ -187,7 +186,9 @@ Respond with JSON ONLY — no markdown fences, no commentary. Exact shape:
       responseText: _formatArticleList(
         shown,
         totalFound: articles.length,
-        heading: sourceName.isNotEmpty ? "Latest from $sourceName" : "Latest across your feeds",
+        heading: sourceName.isNotEmpty
+            ? "Latest from $sourceName"
+            : "Latest across your feeds",
       ),
       agentName: name,
       usedTools: const ['rss'],
@@ -219,7 +220,8 @@ Respond with JSON ONLY — no markdown fences, no commentary. Exact shape:
 
     if (windowed.isEmpty) {
       return AgentExecutionResult(
-        responseText: "Nothing published across your saved sources in the last $hours hours.",
+        responseText:
+            "Nothing published across your saved sources in the last $hours hours.",
         agentName: name,
         usedTools: const ['rss'],
       );
@@ -241,20 +243,25 @@ Respond with JSON ONLY — no markdown fences, no commentary. Exact shape:
 
     if (sourceName.isEmpty) {
       return AgentExecutionResult(
-        responseText: "Which source would you like me to summarize? For example: \"summarize BBC\".",
+        responseText:
+            "Which source would you like me to summarize? For example: \"summarize BBC\".",
         agentName: name,
         usedTools: const ['groq'],
       );
     }
 
-    final fetchResult = await _safeFetch(context.userId, sourceName: sourceName);
+    final fetchResult = await _safeFetch(
+      context.userId,
+      sourceName: sourceName,
+    );
     if (fetchResult.error != null) {
       return _errorResult(fetchResult.error!, usedTools: const ['rss']);
     }
 
     if (fetchResult.articles.isEmpty) {
       return AgentExecutionResult(
-        responseText: "$sourceName doesn't have any recent articles to summarize right now.",
+        responseText:
+            "$sourceName doesn't have any recent articles to summarize right now.",
         agentName: name,
         usedTools: const ['rss'],
       );
@@ -291,24 +298,37 @@ Respond with JSON ONLY — no markdown fences, no commentary. Exact shape:
     } on _NoSourcesException {
       return _FetchResult(
         const [],
-        _NewsError(message: "You don't have any saved news sources yet — add one from the News tab first."),
+        _NewsError(
+          message:
+              "You don't have any saved news sources yet — add one from the News tab first.",
+        ),
       );
     } on _SourceNotFoundException catch (e) {
       return _FetchResult(
         const [],
-        _NewsError(message: "I couldn't find a saved source matching \"${e.attemptedName}\" — check the name and try again."),
+        _NewsError(
+          message:
+              "I couldn't find a saved source matching \"${e.attemptedName}\" — check the name and try again.",
+        ),
       );
     } catch (e) {
       return _FetchResult(
         const [],
-        _NewsError(message: "I couldn't fetch the news right now — $e", isHardFailure: true, detail: e.toString()),
+        _NewsError(
+          message: "I couldn't fetch the news right now — $e",
+          isHardFailure: true,
+          detail: e.toString(),
+        ),
       );
     }
   }
 
   /// Resolves the list of sources to query. Merges user-saved Supabase
   /// sources with global defaults. Falls back to defaults if DB is unreachable.
-  Future<List<RssFeedSource>> _resolveSources(String userId, {String? name}) async {
+  Future<List<RssFeedSource>> _resolveSources(
+    String userId, {
+    String? name,
+  }) async {
     List<RssFeedSource> saved = [];
     try {
       saved = await RssSourceRepository().getSavedSources(userId);
@@ -317,16 +337,15 @@ Respond with JSON ONLY — no markdown fences, no commentary. Exact shape:
       // using the globally suggested feeds rather than crashing entirely.
     }
 
-    final pool = <RssFeedSource>[
-      ...kSuggestedRssFeeds,
-      ...saved,
-    ];
+    final pool = <RssFeedSource>[...kSuggestedRssFeeds, ...saved];
     if (pool.isEmpty) throw _NoSourcesException();
 
     if (name == null || name.trim().isEmpty) return pool;
 
     final lower = name.trim().toLowerCase();
-    final matches = pool.where((s) => s.name.toLowerCase().contains(lower)).toList(growable: false);
+    final matches = pool
+        .where((s) => s.name.toLowerCase().contains(lower))
+        .toList(growable: false);
 
     if (matches.isEmpty) throw _SourceNotFoundException(name);
     return matches;
@@ -339,7 +358,9 @@ Respond with JSON ONLY — no markdown fences, no commentary. Exact shape:
       'sourceName': source.name,
     });
     if (result is! List<RssArticle>) {
-      throw StateError('RSS tool returned ${result.runtimeType}; expected List<RssArticle>.');
+      throw StateError(
+        'RSS tool returned ${result.runtimeType}; expected List<RssArticle>.',
+      );
     }
     return result;
   }
@@ -349,7 +370,10 @@ Respond with JSON ONLY — no markdown fences, no commentary. Exact shape:
   // ===========================================================================
 
   /// Formats the articles and sends them to Groq for summarization.
-  Future<AgentExecutionResult> _summarizeArticles(List<RssArticle> articles, {required String label}) async {
+  Future<AgentExecutionResult> _summarizeArticles(
+    List<RssArticle> articles, {
+    required String label,
+  }) async {
     if (articles.isEmpty) {
       return AgentExecutionResult(
         responseText: "Nothing to summarize from $label right now.",
@@ -358,17 +382,20 @@ Respond with JSON ONLY — no markdown fences, no commentary. Exact shape:
       );
     }
 
-    final articlesText = articles.map((a) {
-      final body = _truncate(a.description, _maxCharsPerArticleInSummary);
-      return <String>[
-        'Source: ${a.sourceName}',
-        'Title: ${a.title}',
-        'Published: ${a.relativeTime}',
-        if (body.isNotEmpty) 'Body: $body',
-      ].join('\n');
-    }).join('\n\n---\n\n');
+    final articlesText = articles
+        .map((a) {
+          final body = _truncate(a.description, _maxCharsPerArticleInSummary);
+          return <String>[
+            'Source: ${a.sourceName}',
+            'Title: ${a.title}',
+            'Published: ${a.relativeTime}',
+            if (body.isNotEmpty) 'Body: $body',
+          ].join('\n');
+        })
+        .join('\n\n---\n\n');
 
-    final userPrompt = '''
+    final userPrompt =
+        '''
 Summarize the following news articles from $label.
 
 Requirements:
@@ -394,7 +421,8 @@ Source material:
       final summary = (raw is String ? raw : '').trim();
       if (summary.isEmpty) {
         return AgentExecutionResult(
-          responseText: "I pulled the articles from $label but couldn't produce a summary just now. Please try again.",
+          responseText:
+              "I pulled the articles from $label but couldn't produce a summary just now. Please try again.",
           agentName: name,
           success: false,
           errorMessage: 'Groq returned an empty summary.',
@@ -409,7 +437,8 @@ Source material:
       );
     } catch (e, st) {
       return AgentExecutionResult(
-        responseText: "I fetched the articles from $label but hit an error while writing the summary. Please try again.",
+        responseText:
+            "I fetched the articles from $label but hit an error while writing the summary. Please try again.",
         agentName: name,
         success: false,
         errorMessage: '$e\n$st',
@@ -419,7 +448,7 @@ Source material:
   }
 
   static const String _summarizerSystemPrompt = '''
-You are the News Agent for Mimir AI. You write clean, scannable news
+You are the News Agent for cipher AI. You write clean, scannable news
 digests from raw RSS article payloads. You are precise, neutral, and
 terse. You never invent details. You merge duplicate stories. You
 prioritize by editorial importance (breaking > major > routine). You
@@ -482,7 +511,9 @@ single "Bottom line:" sentence.
 
   /// Classifies the user's intent via Groq.
   Future<Map<String, dynamic>> _classify(ExecutionContext context) async {
-    final history = context.recentMessages.map((m) => m.toGroqFormat()).toList();
+    final history = context.recentMessages
+        .map((m) => m.toGroqFormat())
+        .toList();
 
     final raw = await ToolManager.instance.executeTool('groq', {
       'systemPrompt': systemPrompt,
@@ -546,7 +577,8 @@ single "Bottom line:" sentence.
       final start = cleaned.indexOf('{');
       final end = cleaned.lastIndexOf('}');
       if (start == -1 || end == -1 || end <= start) return {};
-      return jsonDecode(cleaned.substring(start, end + 1)) as Map<String, dynamic>;
+      return jsonDecode(cleaned.substring(start, end + 1))
+          as Map<String, dynamic>;
     } catch (_) {
       return {};
     }
@@ -591,9 +623,15 @@ single "Bottom line:" sentence.
   // ===========================================================================
 
   /// Formats a list of articles into a clean, markdown-formatted string.
-  String _formatArticleList(List<RssArticle> shown, {required int totalFound, required String heading}) {
+  String _formatArticleList(
+    List<RssArticle> shown, {
+    required int totalFound,
+    required String heading,
+  }) {
     final buffer = StringBuffer()
-      ..writeln('**$heading**${totalFound > shown.length ? ' (showing ${shown.length} of $totalFound)' : ''}')
+      ..writeln(
+        '**$heading**${totalFound > shown.length ? ' (showing ${shown.length} of $totalFound)' : ''}',
+      )
       ..writeln();
     for (final a in shown) {
       buffer.writeln('- **${a.title}** — ${a.sourceName} (${a.relativeTime})');
@@ -602,7 +640,10 @@ single "Bottom line:" sentence.
   }
 
   /// Converts an internal [_NewsError] into an [AgentExecutionResult].
-  AgentExecutionResult _errorResult(_NewsError error, {required List<String> usedTools}) {
+  AgentExecutionResult _errorResult(
+    _NewsError error, {
+    required List<String> usedTools,
+  }) {
     return AgentExecutionResult(
       responseText: error.message,
       agentName: name,

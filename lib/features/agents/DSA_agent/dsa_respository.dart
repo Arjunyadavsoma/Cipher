@@ -1,6 +1,6 @@
-import 'package:mimir_ai/features/agents/DSA_agent/dsa_question.dart';
-import 'package:mimir_ai/features/agents/DSA_agent/dsa_user_progress.dart';
-import 'package:mimir_ai/features/agents/core/tool_manager.dart';
+import 'package:cipher_ai/features/agents/DSA_agent/dsa_question.dart';
+import 'package:cipher_ai/features/agents/DSA_agent/dsa_user_progress.dart';
+import 'package:cipher_ai/features/agents/core/tool_manager.dart';
 
 /// Abstract interface for DSA data persistence.
 abstract class DsaRepository {
@@ -19,12 +19,14 @@ class FirebaseDsaRepository implements DsaRepository {
   @override
   Future<DsaQuestion?> getTodaysQuestion() async {
     try {
-      final String today = DateTime.now().toUtc().toIso8601String().split('T')[0];
+      final String today = DateTime.now().toUtc().toIso8601String().split(
+        'T',
+      )[0];
       final res = await _toolManager.executeTool('firebase', {
         'type': 'get',
         'path': 'daily_questions/$today',
       });
-      
+
       if (res is Map<String, dynamic> && res.isNotEmpty) {
         return DsaQuestion.fromMap(res);
       }
@@ -59,9 +61,11 @@ class FirebaseDsaRepository implements DsaRepository {
       'type': 'collection',
       'path': 'users/$userId/savedQuestions',
     });
-    
+
     if (res is List) {
-      return res.map((e) => DsaQuestion.fromMap(e as Map<String, dynamic>)).toList();
+      return res
+          .map((e) => DsaQuestion.fromMap(e as Map<String, dynamic>))
+          .toList();
     }
     return [];
   }
@@ -85,7 +89,10 @@ class FirebaseDsaRepository implements DsaRepository {
   }
 
   @override
-  Future<void> updateUserProgress(String userId, DsaUserProgress progress) async {
+  Future<void> updateUserProgress(
+    String userId,
+    DsaUserProgress progress,
+  ) async {
     await _toolManager.executeTool('firebase', {
       'type': 'set',
       'path': 'users/$userId/statistics/progress',

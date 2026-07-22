@@ -17,21 +17,23 @@ class AgentRouter {
     if (lowerMessage.contains('@image')) {
       return AgentRegistry.instance.getAgent('pixelster_image');
     }
+    // Inside agent_router.dart
+    if (lowerMessage.contains('@mock')) {
+      return AgentRegistry.instance.getAgent('interview_agent');
+    }
     
     if (lowerMessage.contains('@video')) {
       return AgentRegistry.instance.getAgent('pixelster_video');
     }
 
+    if (lowerMessage.contains('@dsa')) {
+      return AgentRegistry.instance.getAgent('dsa_agent');
+    }
 
-
-
-
-  // ADD THIS NEW BLOCK:
-  if (lowerMessage.contains('@dsa')) {
-    return AgentRegistry.instance.getAgent('dsa_agent');
-  }
-
-
+    // ADD THIS NEW BLOCK FOR INTERVIEW AGENT:
+    if (lowerMessage.contains('@interview')) {
+      return AgentRegistry.instance.getAgent('interview_agent');
+    }
 
     final agents = AgentRegistry.instance.getAllAgents().toList()
       ..sort((a, b) => b.name.length.compareTo(a.name.length));

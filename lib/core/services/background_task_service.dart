@@ -1,11 +1,10 @@
 import 'dart:async';
-import 'package:mimir_ai/features/agents/DSA_agent/dsa_agent.dart';
-import 'package:mimir_ai/features/agents/models/execution_context.dart';
+import 'package:cipher_ai/features/agents/DSA_agent/dsa_agent.dart';
+import 'package:cipher_ai/features/agents/models/execution_context.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
-
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -24,25 +23,25 @@ void callbackDispatcher() {
       url: 'YOUR_SUPABASE_URL',
       anonKey: 'YOUR_SUPABASE_ANON_KEY',
     );
-    
+
     // Initialize notifications
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings initializationSettingsIOS =
         DarwinInitializationSettings();
-    const InitializationSettings initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
-    );
+    const InitializationSettings initializationSettings =
+        InitializationSettings(
+          android: initializationSettingsAndroid,
+          iOS: initializationSettingsIOS,
+        );
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
     try {
       // 2. Route the task based on the name
       if (task == 'dsaDailyFetch') {
         await _fetchDsaPotdAndNotify(inputData?['userId'] as String);
-      } 
+      }
       // You can add more background agent tasks here later
-      
     } catch (e) {
       print("Background Task Error: $e");
       return Future.value(false); // Task failed, OS will retry later
@@ -54,9 +53,9 @@ void callbackDispatcher() {
 
 Future<void> _fetchDsaPotdAndNotify(String userId) async {
   // 1. Access the ToolManager Singleton
-  
+
   // 2. CRITICAL: Register your tools in this background isolate!
-  // Because this is a separate isolate, the tools registered in main.dart 
+  // Because this is a separate isolate, the tools registered in main.dart
   // don't exist here. You must register them again.
   // (Adjust these based on how you actually register tools in your ToolManager)
   //
@@ -64,10 +63,10 @@ Future<void> _fetchDsaPotdAndNotify(String userId) async {
   // toolManager.registerTool(GroqTool());
   // toolManager.registerTool(FirebaseTool());
   // toolManager.registerTool(HttpTool());
-  
+
   // 3. Initialize the agent
   final dsaAgent = DsaAgent();
-  
+
   // 4. Create a mock execution context for the background task
   final context = ExecutionContext(
     userId: userId,
@@ -86,7 +85,9 @@ Future<void> _fetchDsaPotdAndNotify(String userId) async {
   await flutterLocalNotificationsPlugin.show(
     8888, // Notification ID
     'DSA Problem of the Day is Ready! 🔥',
-    result.responseText.split('\n').first, // Just show the first line (usually the title)
+    result.responseText
+        .split('\n')
+        .first, // Just show the first line (usually the title)
     const NotificationDetails(
       android: AndroidNotificationDetails(
         'dsa_daily_channel',
@@ -119,7 +120,7 @@ class BackgroundTaskService {
       constraints: Constraints(
         networkType: NetworkType.connected, // Requires internet
       ),
-      // Note: Workmanager doesn't guarantee exact 8 AM execution, 
+      // Note: Workmanager doesn't guarantee exact 8 AM execution,
       // it optimizes for battery. It will run roughly once a day.
     );
     print("Scheduled DSA Daily Fetch for user: $userId");

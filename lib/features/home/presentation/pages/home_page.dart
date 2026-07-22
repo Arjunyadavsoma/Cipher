@@ -44,9 +44,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     return Scaffold(
       backgroundColor: const Color(0xffF7F7F8),
-      drawer: const Drawer(
-        child: DrawerView(),
-      ),
+      drawer: const Drawer(child: DrawerView()),
       body: SafeArea(
         child: Stack(
           children: [
@@ -97,10 +95,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ),
                   const Text(
                     "Cipher Ai",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
                   ),
                   IconButton(
                     icon: const Icon(Icons.edit_square, size: 26),
@@ -125,10 +120,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ChatInput(
                     controller: controller.textController,
                     onSend: controller.sendMessage,
-                    onSendVoice: (path, duration) => controller.sendVoiceMessage(
-                      localFilePath: path,
-                      durationSeconds: duration,
-                    ),
+                    onSendVoice: (path, duration) =>
+                        controller.sendVoiceMessage(
+                          localFilePath: path,
+                          durationSeconds: duration,
+                        ),
                     pendingAttachment: controller.pendingAttachment,
                     onAttachFile: controller.attachFile,
                     onRemoveAttachment: controller.removeAttachment,
@@ -149,7 +145,7 @@ void _showGmailIntroDialog(BuildContext context, HomeController controller) {
     builder: (dialogContext) => AlertDialog(
       title: const Text("Connect your Google account"),
       content: const Text(
-        "Mimir can draft and send emails for you, but it needs your "
+        "cipher can draft and send emails for you, but it needs your "
         "permission to access Gmail first. It only sends what you "
         "explicitly ask it to send, and only after you connect your "
         "Google account.",

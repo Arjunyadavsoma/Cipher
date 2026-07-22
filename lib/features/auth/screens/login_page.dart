@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:mimir_ai/app/features/auth/data/auth_repository.dart';
+import 'package:cipher_ai/app/features/auth/data/auth_repository.dart';
 
 import '../widgets/auth_button.dart';
 import '../widgets/auth_divider.dart';
@@ -40,16 +40,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
-      await ref.read(authRepositoryProvider).signInWithEmailAndPassword(
+      await ref
+          .read(authRepositoryProvider)
+          .signInWithEmailAndPassword(
             _emailController.text.trim(),
             _passwordController.text.trim(),
           );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -69,9 +71,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -87,10 +89,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 28,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
               // ConstrainedBox + IntrinsicHeight is what makes this
               // "fit without scrolling on normal screens, but scroll
               // instead of overflow on the rare short/large-font
@@ -101,8 +100,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               // That forcing is what produced the 30px overflow.
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight -
-                      24, // vertical padding above
+                  minHeight:
+                      constraints.maxHeight - 24, // vertical padding above
                 ),
                 child: IntrinsicHeight(
                   child: Center(
@@ -143,8 +142,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize: const Size(0, 32),
-                                tapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
                               onPressed: () {
                                 context.push("/forgot-password");
@@ -188,9 +186,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
                           const SizedBox(height: 20),
 
-                          GoogleSignInButton(
-                            onPressed: _googleSignIn,
-                          ),
+                          GoogleSignInButton(onPressed: _googleSignIn),
 
                           const SizedBox(height: 16),
 

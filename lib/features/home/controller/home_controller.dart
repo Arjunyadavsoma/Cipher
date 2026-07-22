@@ -4,15 +4,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mimir_ai/core/services/background_task_service.dart';
-import 'package:mimir_ai/core/services/file_parser/file_parser_service.dart';
-import 'package:mimir_ai/core/services/gmail/gmail_auth_service.dart';
-import 'package:mimir_ai/core/services/notification_service.dart'; // NEW
-import 'package:mimir_ai/core/services/share/share_intent_service.dart';
-import 'package:mimir_ai/core/services/supabase/voice_upload_service.dart';
-import 'package:mimir_ai/features/agents/services/agent_service.dart';
-import 'package:mimir_ai/features/agents/models/execution_result.dart';
-import 'package:mimir_ai/features/chat/services/transcription_service.dart';
+import 'package:cipher_ai/core/services/background_task_service.dart';
+import 'package:cipher_ai/core/services/file_parser/file_parser_service.dart';
+import 'package:cipher_ai/core/services/gmail/gmail_auth_service.dart';
+import 'package:cipher_ai/core/services/notification_service.dart'; // NEW
+import 'package:cipher_ai/core/services/share/share_intent_service.dart';
+import 'package:cipher_ai/core/services/supabase/voice_upload_service.dart';
+import 'package:cipher_ai/features/agents/services/agent_service.dart';
+import 'package:cipher_ai/features/agents/models/execution_result.dart';
+import 'package:cipher_ai/features/chat/services/transcription_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_message.dart';
@@ -27,12 +27,10 @@ class HomeController extends ChangeNotifier {
 
   final List<ChatMessage> messages = [];
 
-  
   Future<void> initUserBackgroundTasks(String userId) async {
     // Schedule the 8 AM DSA fetch
     await BackgroundTaskService.instance.scheduleDailyDsaFetch(userId);
   }
-
 
   bool isTyping = false;
   bool isSending = false;
@@ -154,8 +152,8 @@ class HomeController extends ChangeNotifier {
         pipelineMessage = text.isNotEmpty
             ? text
             : "The user attached a file named \"${attachment.name}\" but it "
-                "couldn't be read: ${parsed.error}. Let them know why, "
-                "briefly.";
+                  "couldn't be read: ${parsed.error}. Let them know why, "
+                  "briefly.";
       } else {
         if (index != -1) {
           messages[index] = messages[index].copyWith(
@@ -169,7 +167,9 @@ class HomeController extends ChangeNotifier {
             : "Summarize this document and highlight the key points.";
 
         final buffer = StringBuffer();
-        buffer.writeln("The user attached a file named \"${attachment.name}\".");
+        buffer.writeln(
+          "The user attached a file named \"${attachment.name}\".",
+        );
         if (parsed.truncated) {
           buffer.writeln(
             "(Note: this file was long - only the first "
@@ -196,8 +196,8 @@ class HomeController extends ChangeNotifier {
       pipelineMessage = text.isNotEmpty
           ? text
           : "The user attached a file named \"${attachment.name}\" but the "
-              "app couldn't access its contents. Let them know they may "
-              "need to try picking it again.";
+                "app couldn't access its contents. Let them know they may "
+                "need to try picking it again.";
       notifyListeners();
     }
 
@@ -209,7 +209,7 @@ class HomeController extends ChangeNotifier {
       );
 
       _processAssistantResult(result); // NEW: Handles media parsing & UI update
-      
+
       final needsConnect = result.action?.type == AgentActionType.connectGmail;
       if (needsConnect) {
         needsGmailConnect = true;
@@ -277,24 +277,30 @@ class HomeController extends ChangeNotifier {
     String? transcript;
 
     await Future.wait([
-      VoiceUploadService.uploadRecording(localFilePath).then((url) {
-        uploadedUrl = url;
-      }).catchError((e) {
-        debugPrint("Voice upload error: $e");
-      }),
-      TranscriptionService.instance.transcribeFile(localFilePath).then((text) {
-        transcript = text;
-      }).catchError((e) {
-        debugPrint("Transcription error: $e");
-      }),
+      VoiceUploadService.uploadRecording(localFilePath)
+          .then((url) {
+            uploadedUrl = url;
+          })
+          .catchError((e) {
+            debugPrint("Voice upload error: $e");
+          }),
+      TranscriptionService.instance
+          .transcribeFile(localFilePath)
+          .then((text) {
+            transcript = text;
+          })
+          .catchError((e) {
+            debugPrint("Transcription error: $e");
+          }),
     ]);
 
     final index = messages.indexWhere((m) => m.id == messageId);
     if (index != -1) {
       messages[index] = messages[index].copyWith(
         audioUrl: uploadedUrl,
-        uploadStatus:
-            uploadedUrl != null ? VoiceUploadStatus.uploaded : VoiceUploadStatus.failed,
+        uploadStatus: uploadedUrl != null
+            ? VoiceUploadStatus.uploaded
+            : VoiceUploadStatus.failed,
         transcribedText: transcript,
         transcriptionStatus: transcript != null
             ? TranscriptionStatus.transcribed
@@ -308,7 +314,8 @@ class HomeController extends ChangeNotifier {
       messages.add(
         ChatMessage(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
-          text: "I couldn't understand that recording - could you try "
+          text:
+              "I couldn't understand that recording - could you try "
               "again, or type your message instead?",
           sender: Sender.assistant,
           time: DateTime.now(),
@@ -351,7 +358,7 @@ class HomeController extends ChangeNotifier {
   }
 
   // ---------- NEW: HELPER TO PROCESS MEDIA & NOTIFICATIONS ----------
-    // ---------- NEW: HELPER TO PROCESS MEDIA & NOTIFICATIONS ----------
+  // ---------- NEW: HELPER TO PROCESS MEDIA & NOTIFICATIONS ----------
   void _processAssistantResult(AgentExecutionResult result) {
     String extractedImageUrl = '';
     String extractedVideoUrl = '';
@@ -392,7 +399,7 @@ class HomeController extends ChangeNotifier {
 
     // Send Notification if user is NOT on the screen
     if (!_isChatScreenActive) {
-      String notifTitle = "Mimir AI";
+      String notifTitle = "cipher AI";
       String notifBody = "Response received.";
       if (msgType == MessageType.image) {
         notifTitle = "Image Generated!";
@@ -401,7 +408,7 @@ class HomeController extends ChangeNotifier {
         notifTitle = "Video Generated!";
         notifBody = "Your generated video is ready to view.";
       }
-      
+
       // FIXED: Calling the static method directly without .instance
       NotificationService.showLocalNotification(
         title: notifTitle,
@@ -473,7 +480,8 @@ class HomeController extends ChangeNotifier {
         messages.add(
           ChatMessage(
             id: DateTime.now().microsecondsSinceEpoch.toString(),
-            text: "Gmail connected (${account.email}). You can try that "
+            text:
+                "Gmail connected (${account.email}). You can try that "
                 "again now.",
             sender: Sender.assistant,
             time: DateTime.now(),

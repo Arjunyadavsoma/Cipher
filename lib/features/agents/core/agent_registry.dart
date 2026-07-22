@@ -1,8 +1,9 @@
-import 'package:mimir_ai/features/agents/DSA_agent/dsa_agent.dart';
-import 'package:mimir_ai/features/agents/built_in/news_agent.dart';
-import 'package:mimir_ai/features/agents/research_agent/research_agent.dart';
-import 'package:mimir_ai/features/pixelster/agents/image_agent.dart';
-import 'package:mimir_ai/features/pixelster/agents/video_agent.dart';
+import 'package:cipher_ai/features/agents/DSA_agent/dsa_agent.dart';
+import 'package:cipher_ai/features/agents/built_in/news_agent.dart';
+import 'package:cipher_ai/features/agents/interview_agent/interview_agent.dart';
+import 'package:cipher_ai/features/agents/research_agent/research_agent.dart';
+import 'package:cipher_ai/features/pixelster/agents/image_agent.dart';
+import 'package:cipher_ai/features/pixelster/agents/video_agent.dart';
 
 import '../built_in/default_chat_agent.dart';
 import '../built_in/email_agent.dart';
@@ -12,9 +13,10 @@ class AgentRegistry {
   AgentRegistry._internal() {
     registerAgent(DefaultChatAgent());
     registerAgent(EmailAgent());
-    registerAgent(NewsAgent()); 
-    registerAgent(ResearchAgent()); 
-    registerAgent(DsaAgent()); 
+    registerAgent(NewsAgent());
+    registerAgent(ResearchAgent());
+    registerAgent(DsaAgent());
+    registerAgent(InterviewAgent());
 
     // Register Snapgen Agents
     registerAgent(ImageAgent());

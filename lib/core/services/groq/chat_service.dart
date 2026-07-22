@@ -26,7 +26,7 @@ Help users with:
 
 Give clear, accurate and practical answers.
 """;
-
+static const String defaultSystemPrompt = _defaultSystemPrompt;
   /// Used internally by the agent system (IntentGate, IntentClassifier,
   /// ContextSummarizerService) for lightweight utility calls that don't
   /// need key rotation. Always uses the single .env key directly.

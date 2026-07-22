@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/auth_text_field.dart';
-import 'package:mimir_ai/app/features/auth/data/auth_repository.dart';
+import 'package:cipher_ai/app/features/auth/data/auth_repository.dart';
 
 import '../widgets/auth_button.dart';
 import '../widgets/auth_divider.dart';
@@ -39,16 +39,18 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     setState(() => _isLoading = true);
 
     try {
-      await ref.read(authRepositoryProvider).createUserWithEmailAndPassword(
+      await ref
+          .read(authRepositoryProvider)
+          .createUserWithEmailAndPassword(
             _emailController.text.trim(),
             _passwordController.text.trim(),
           );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -68,9 +70,9 @@ class _SignupPageState extends ConsumerState<SignupPage> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -86,10 +88,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 28,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
               // Same fix as login_page.dart: IntrinsicHeight +
               // ConstrainedBox(minHeight:) lets content size itself
               // naturally and still center on tall screens, while
@@ -115,8 +114,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
 
                           const AuthTitle(
                             title: "Create account",
-                            subtitle:
-                                "Your personal AI workspace starts here.",
+                            subtitle: "Your personal AI workspace starts here.",
                           ),
 
                           const SizedBox(height: 24),
@@ -169,9 +167,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
 
                           const SizedBox(height: 20),
 
-                          GoogleSignInButton(
-                            onPressed: _googleSignIn,
-                          ),
+                          GoogleSignInButton(onPressed: _googleSignIn),
 
                           const SizedBox(height: 16),
 

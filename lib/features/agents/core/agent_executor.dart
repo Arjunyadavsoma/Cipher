@@ -1,4 +1,4 @@
-import 'package:mimir_ai/features/agents/research_agent/research_agent.dart';
+import 'package:cipher_ai/features/agents/research_agent/research_agent.dart';
 
 import '../built_in/email_agent.dart';
 import '../models/agent_context_storage.dart';
@@ -71,11 +71,12 @@ class AgentExecutor {
     Map<String, dynamic>? researchAgentMemory;
     if (researchAgent != null &&
         researchAgent.contextStorage != AgentContextStorage.none) {
-      researchAgentMemory = await AgentMemoryRepository.instance.loadAgentContext(
-        userId: userId,
-        agentId: researchAgent.id,
-        storage: researchAgent.contextStorage,
-      );
+      researchAgentMemory = await AgentMemoryRepository.instance
+          .loadAgentContext(
+            userId: userId,
+            agentId: researchAgent.id,
+            storage: researchAgent.contextStorage,
+          );
     }
 
     final hasLastPaper = researchAgentMemory?['lastPaper'] != null;
@@ -84,12 +85,16 @@ class AgentExecutor {
 
     if (emailAgent != null && (hasPendingDraft || looksLikeSearchFollowUp)) {
       // ignore: avoid_print
-      print('AgentExecutor: sticky ${hasPendingDraft ? "pending draft" : "search follow-up"} -> ${emailAgent.name}');
+      print(
+        'AgentExecutor: sticky ${hasPendingDraft ? "pending draft" : "search follow-up"} -> ${emailAgent.name}',
+      );
       agent = emailAgent;
       agentMemory = emailAgentMemory;
     } else if (researchAgent != null && looksLikeResearchContinuation) {
       // ignore: avoid_print
-      print('AgentExecutor: sticky research continuation -> ${researchAgent.name}');
+      print(
+        'AgentExecutor: sticky research continuation -> ${researchAgent.name}',
+      );
       agent = researchAgent;
       agentMemory = researchAgentMemory;
     } else {
@@ -111,8 +116,10 @@ class AgentExecutor {
         resolved = AgentRegistry.instance.findByName(preRoutedAgentName);
         if (resolved != null) {
           // ignore: avoid_print
-          print('AgentExecutor: planner picked "${resolved.name}" '
-              'at confidence $preRoutedConfidence');
+          print(
+            'AgentExecutor: planner picked "${resolved.name}" '
+            'at confidence $preRoutedConfidence',
+          );
         }
       }
 
@@ -146,7 +153,6 @@ class AgentExecutor {
 
     AgentExecutionResult result;
     try {
-      
       result = await agent.execute(context);
     } catch (e) {
       print('AgentExecutor: agent.execute() threw: $e');

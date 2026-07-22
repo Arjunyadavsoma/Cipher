@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mimir_ai/Knowledge/knowledge_entry.dart';
-import 'package:mimir_ai/Knowledge/knowledge_Screen/knowledge_provider.dart';
+import 'package:cipher_ai/Knowledge/knowledge_entry.dart';
+import 'package:cipher_ai/Knowledge/knowledge_Screen/knowledge_provider.dart';
 
 class KnowledgeDetailPage extends ConsumerWidget {
   const KnowledgeDetailPage({super.key, required this.entry});
@@ -22,7 +22,10 @@ class KnowledgeDetailPage extends ConsumerWidget {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: const Text("Memory Detail", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text(
+          "Memory Detail",
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
@@ -31,7 +34,9 @@ class KnowledgeDetailPage extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
             onPressed: () async {
-              await ref.read(knowledgeRepositoryProvider).deleteEntry(
+              await ref
+                  .read(knowledgeRepositoryProvider)
+                  .deleteEntry(
                     userId: uid!,
                     layer: entry.layer,
                     entryId: entry.id,
@@ -54,7 +59,7 @@ class KnowledgeDetailPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 32),
-          
+
           _SectionTitle("Layer"),
           const SizedBox(height: 12),
           Container(
@@ -65,30 +70,38 @@ class KnowledgeDetailPage extends ConsumerWidget {
             ),
             child: Text(
               _capitalize(entry.layer),
-              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
             ),
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           if (entry.tags.isNotEmpty) ...[
             _SectionTitle("Tags"),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: entry.tags.map((tag) => 
-                Chip(
-                  label: Text('#$tag'),
-                  backgroundColor: Colors.grey.shade100,
-                  side: BorderSide.none,
-                  labelStyle: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w500),
-                )
-              ).toList(),
+              children: entry.tags
+                  .map(
+                    (tag) => Chip(
+                      label: Text('#$tag'),
+                      backgroundColor: Colors.grey.shade100,
+                      side: BorderSide.none,
+                      labelStyle: const TextStyle(
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
             const SizedBox(height: 24),
           ],
-          
+
           _SectionTitle("Importance"),
           const SizedBox(height: 12),
           ClipRRect(
@@ -103,16 +116,24 @@ class KnowledgeDetailPage extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             "${(entry.importance * 100).toStringAsFixed(0)}%",
-            style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          
+
           const SizedBox(height: 32),
-          
-          _RowDetail(title: "Created", value: entry.createdAt.toLocal().toString().split('.').first),
+
+          _RowDetail(
+            title: "Created",
+            value: entry.createdAt.toLocal().toString().split('.').first,
+          ),
           const SizedBox(height: 16),
           _RowDetail(
-            title: "Last Used", 
-            value: entry.lastUsedAt == null ? "Never" : entry.lastUsedAt!.toLocal().toString().split('.').first
+            title: "Last Used",
+            value: entry.lastUsedAt == null
+                ? "Never"
+                : entry.lastUsedAt!.toLocal().toString().split('.').first,
           ),
         ],
       ),
@@ -148,9 +169,19 @@ class _RowDetail extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: TextStyle(fontSize: 13, color: Colors.grey.shade500, fontWeight: FontWeight.bold)),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey.shade500,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontSize: 16, color: Colors.black87)),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 16, color: Colors.black87),
+        ),
       ],
     );
   }

@@ -1,6 +1,6 @@
 {
-    "name": "mimir_ai",
-    "short_name": "mimir_ai",
+    "name": "cipher_ai",
+    "short_name": "cipher_ai",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

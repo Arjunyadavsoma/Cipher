@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mimir_ai/app/features/rss/controller/rss_controller.dart';
+import 'package:cipher_ai/app/features/rss/controller/rss_controller.dart';
 
 /// Exposes `RssController` to the UI layer, mirroring
 /// `providers/agent_provider.dart`'s wiring of `AgentService`.
@@ -11,5 +11,5 @@ import 'package:mimir_ai/app/features/rss/controller/rss_controller.dart';
 /// wasn't in the manifest you shared.
 final rssControllerProvider =
     ChangeNotifierProvider.family<RssController, String>((ref, userId) {
-  return RssController(userId: userId);
-});
+      return RssController(userId: userId);
+    });

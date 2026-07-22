@@ -1,8 +1,8 @@
 import 'package:http/http.dart' as http;
-import 'package:mimir_ai/features/agents/models/tool.dart';
+import 'package:cipher_ai/features/agents/models/tool.dart';
 import 'package:xml/xml.dart';
 
-import 'package:mimir_ai/app/features/rss/models/rss_article.dart';
+import 'package:cipher_ai/app/features/rss/models/rss_article.dart';
 
 class RssTool implements Tool {
   static const String toolName = 'rss_tool';
@@ -89,8 +89,7 @@ class RssTool implements Tool {
     final cleaned = raw.trim();
     final parts = cleaned.split(RegExp(r'\s+'));
 
-    final offset =
-        parts.length >= 6 && parts[0].endsWith(',') ? 1 : 0;
+    final offset = parts.length >= 6 && parts[0].endsWith(',') ? 1 : 0;
 
     final day = int.parse(parts[offset]);
     final month = _monthMap[parts[offset + 1]] ?? 1;

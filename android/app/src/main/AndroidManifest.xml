@@ -11,7 +11,7 @@
 
 
     <application
-        android:label="mimir_ai"
+        android:label="Cipher Ai"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

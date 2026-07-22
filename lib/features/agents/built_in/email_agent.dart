@@ -37,7 +37,7 @@ class EmailAgent implements BaseAgent {
 
   @override
   String get systemPrompt => '''
-You are the Email Agent inside Mimir AI. Classify the user's message into
+You are the Email Agent inside cipher AI. Classify the user's message into
 exactly one of these intents:
 
 - COMPOSE: user wants to write and/or send a NEW email. Extract the
@@ -97,7 +97,7 @@ Always respond with JSON only, no other text, in this exact shape:
   /// and a narrower output shape, and mixing that into the general
   /// classifier schema would make both harder to reason about.
   String get _revisionSystemPrompt => '''
-You are the Email Agent inside Mimir AI, revising a draft that is already
+You are the Email Agent inside cipher AI, revising a draft that is already
 pending. You will be given the current draft and the user's requested
 change. Apply ONLY the requested change - carry every other field over
 unchanged from the current draft.
@@ -211,8 +211,7 @@ Return JSON only, no other text, in this exact shape:
   /// Loose email format check - good enough to catch typos and stray
   /// text before they get saved into a draft or sent to Gmail's API,
   /// not meant to be a full RFC 5322 validator.
-  static final RegExp _emailPattern =
-      RegExp(r'^[\w.\-+]+@[\w\-]+\.[\w\-.]+$');
+  static final RegExp _emailPattern = RegExp(r'^[\w.\-+]+@[\w\-]+\.[\w\-.]+$');
 
   static bool looksLikeSearchFollowUp(String message) {
     final lower = message.toLowerCase();
@@ -258,8 +257,7 @@ Return JSON only, no other text, in this exact shape:
       }
     }
 
-    final pendingSearch =
-        context.agentMemory?['pendingSearchResults'] as Map?;
+    final pendingSearch = context.agentMemory?['pendingSearchResults'] as Map?;
 
     if (pendingSearch != null && looksLikeSearchFollowUp(context.message)) {
       return _handleSearchFollowUp(context, pendingSearch);
@@ -305,12 +303,12 @@ Return JSON only, no other text, in this exact shape:
     var body = (parsed['body'] as String? ?? '').trim();
     final priority = _normalizePriority(parsed['priority'] as String?);
 
-    // Fallback: If the LLM ignored the prompt and failed to write a body, 
+    // Fallback: If the LLM ignored the prompt and failed to write a body,
     // explicitly ask it to generate one based on the subject and original request.
     if (body.isEmpty) {
       body = await _generateEmailBody(context, subject);
     }
-    
+
     // If it still fails, use a placeholder so the draft isn't completely blank.
     if (body.isEmpty) {
       body = "(Please enter your email body here)";
@@ -365,7 +363,7 @@ Return JSON only, no other text, in this exact shape:
           'to': to.join(', '),
           'cc': cc.join(', '),
           'bcc': bcc.join(', '),
-          'subject': subject.isNotEmpty ? subject : 'Message from Mimir AI',
+          'subject': subject.isNotEmpty ? subject : 'Message from cipher AI',
           'body': body,
           'priority': priority,
           'attachmentPaths': context.attachments,
@@ -379,7 +377,7 @@ Return JSON only, no other text, in this exact shape:
         to: to.join(', '),
         cc: cc.join(', '),
         bcc: bcc.join(', '),
-        subject: subject.isNotEmpty ? subject : 'Message from Mimir AI',
+        subject: subject.isNotEmpty ? subject : 'Message from cipher AI',
         body: body,
         priority: priority,
         attachmentCount: context.attachments.length,
@@ -400,21 +398,28 @@ Return JSON only, no other text, in this exact shape:
     );
   }
 
-  /// Helper specifically used to force body generation if the main 
+  /// Helper specifically used to force body generation if the main
   /// classification call returned an empty body string.
-  Future<String> _generateEmailBody(ExecutionContext context, String subject) async {
+  Future<String> _generateEmailBody(
+    ExecutionContext context,
+    String subject,
+  ) async {
     try {
-      final prompt = "The user requested an email but the body was missing. "
+      final prompt =
+          "The user requested an email but the body was missing. "
           "Subject: ${subject.isNotEmpty ? subject : 'N/A'}\n"
           "User's original request: ${context.message}\n\n"
           "Write a complete, professional email body for this. Return ONLY the body text.";
-      
-      final response = await ToolManager.instance.executeTool('groq', {
-        'systemPrompt': 'You are a professional email writing assistant. Write a complete email body based on the provided context. Return only the body text.',
-        'message': prompt,
-        'history': const [],
-      }) as String;
-      
+
+      final response =
+          await ToolManager.instance.executeTool('groq', {
+                'systemPrompt':
+                    'You are a professional email writing assistant. Write a complete email body based on the provided context. Return only the body text.',
+                'message': prompt,
+                'history': const [],
+              })
+              as String;
+
       return response.trim();
     } catch (_) {
       return '';
@@ -449,15 +454,17 @@ Return JSON only, no other text, in this exact shape:
     }
 
     final invalid = <String>[];
-    final toRaw = (parsed['recipientEmail'] as String? ??
-            pendingDraft['to'] as String? ?? '')
-        .trim();
+    final toRaw =
+        (parsed['recipientEmail'] as String? ??
+                pendingDraft['to'] as String? ??
+                '')
+            .trim();
     final ccRaw =
         (parsed['ccEmails'] as String? ?? pendingDraft['cc'] as String? ?? '')
             .trim();
-    final bccRaw = (parsed['bccEmails'] as String? ??
-            pendingDraft['bcc'] as String? ?? '')
-        .trim();
+    final bccRaw =
+        (parsed['bccEmails'] as String? ?? pendingDraft['bcc'] as String? ?? '')
+            .trim();
 
     final to = _validateEmails(toRaw, invalid);
     final cc = _validateEmails(ccRaw, invalid);
@@ -513,15 +520,8 @@ Return JSON only, no other text, in this exact shape:
         (updatedDraft['attachmentPaths'] as List?)?.length ?? 0;
 
     return AgentExecutionResult(
-      responseText: "Updated the draft:\n\n${_formatDraftPreview(
-        to: updatedDraft['to'] as String,
-        cc: updatedDraft['cc'] as String,
-        bcc: updatedDraft['bcc'] as String,
-        subject: updatedDraft['subject'] as String,
-        body: updatedDraft['body'] as String,
-        priority: priority,
-        attachmentCount: attachmentCount,
-      )}",
+      responseText:
+          "Updated the draft:\n\n${_formatDraftPreview(to: updatedDraft['to'] as String, cc: updatedDraft['cc'] as String, bcc: updatedDraft['bcc'] as String, subject: updatedDraft['subject'] as String, body: updatedDraft['body'] as String, priority: priority, attachmentCount: attachmentCount)}",
       agentName: name,
       usedTools: const ['groq'],
     );
@@ -531,7 +531,8 @@ Return JSON only, no other text, in this exact shape:
     ExecutionContext context,
     Map pendingDraft,
   ) async {
-    final currentDraft = "Current draft:\n"
+    final currentDraft =
+        "Current draft:\n"
         "To: ${pendingDraft['to']}\n"
         "Cc: ${pendingDraft['cc'] ?? ''}\n"
         "Bcc: ${pendingDraft['bcc'] ?? ''}\n"
@@ -539,12 +540,15 @@ Return JSON only, no other text, in this exact shape:
         "Priority: ${pendingDraft['priority'] ?? 'normal'}\n\n"
         "Body:\n${pendingDraft['body']}";
 
-    final rawResponse = await ToolManager.instance.executeTool('groq', {
-      'systemPrompt': _revisionSystemPrompt,
-      'message': "$currentDraft\n\n"
-          "Requested change: ${context.message}",
-      'history': const [],
-    }) as String;
+    final rawResponse =
+        await ToolManager.instance.executeTool('groq', {
+              'systemPrompt': _revisionSystemPrompt,
+              'message':
+                  "$currentDraft\n\n"
+                  "Requested change: ${context.message}",
+              'history': const [],
+            })
+            as String;
 
     return _parseJson(rawResponse);
   }
@@ -669,41 +673,46 @@ Return JSON only, no other text, in this exact shape:
         unreadOnly: unreadOnly,
         hasAttachment: hasAttachment,
       );
-      matches = await ToolManager.instance.executeTool('email', {
-            'type': 'search',
-            'query': query,
-            'maxResults': _maxSearchResults,
-          })
-          as List<Map<String, String>>;
+      matches =
+          await ToolManager.instance.executeTool('email', {
+                'type': 'search',
+                'query': query,
+                'maxResults': _maxSearchResults,
+              })
+              as List<Map<String, String>>;
 
       if (matches.isEmpty && senderName.isNotEmpty) {
-        final plainQuery = [senderName, keywords].where((s) => s.isNotEmpty)
-            .join(' ');
-        matches = await ToolManager.instance.executeTool('email', {
-              'type': 'search',
-              'query': plainQuery,
-              'maxResults': _maxSearchResults,
-            })
-            as List<Map<String, String>>;
+        final plainQuery = [
+          senderName,
+          keywords,
+        ].where((s) => s.isNotEmpty).join(' ');
+        matches =
+            await ToolManager.instance.executeTool('email', {
+                  'type': 'search',
+                  'query': plainQuery,
+                  'maxResults': _maxSearchResults,
+                })
+                as List<Map<String, String>>;
       }
 
       if (matches.isEmpty) {
-        final recent = await ToolManager.instance.executeTool('email', {
-              'type': 'fetch',
-              'maxResults': 50,
-              'unreadOnly': unreadOnly,
-            })
-            as List<Map<String, String>>;
+        final recent =
+            await ToolManager.instance.executeTool('email', {
+                  'type': 'fetch',
+                  'maxResults': 50,
+                  'unreadOnly': unreadOnly,
+                })
+                as List<Map<String, String>>;
 
-        final needle = [senderName, keywords]
-            .where((s) => s.isNotEmpty)
-            .join(' ')
-            .toLowerCase();
+        final needle = [
+          senderName,
+          keywords,
+        ].where((s) => s.isNotEmpty).join(' ').toLowerCase();
 
         if (needle.isNotEmpty) {
           matches = recent.where((m) {
-            final haystack =
-                '${m['from']} ${m['subject']} ${m['snippet']}'.toLowerCase();
+            final haystack = '${m['from']} ${m['subject']} ${m['snippet']}'
+                .toLowerCase();
             return needle.split(' ').every(haystack.contains);
           }).toList();
         } else {
@@ -730,7 +739,8 @@ Return JSON only, no other text, in this exact shape:
     if (matches.isEmpty) {
       final who = [senderName, keywords].where((s) => s.isNotEmpty).join(' ');
       return AgentExecutionResult(
-        responseText: "I didn't find anything matching "
+        responseText:
+            "I didn't find anything matching "
             "\"${who.isNotEmpty ? who : 'that'}\" in your inbox.",
         agentName: name,
         usedTools: const ['email'],
@@ -741,8 +751,7 @@ Return JSON only, no other text, in this exact shape:
     if (scope == 'all') {
       selectedCount = matches.length;
     } else if (scope.startsWith('count:')) {
-      selectedCount =
-          int.tryParse(scope.substring('count:'.length)) ?? 1;
+      selectedCount = int.tryParse(scope.substring('count:'.length)) ?? 1;
     } else {
       selectedCount = 1;
     }
@@ -786,7 +795,8 @@ Return JSON only, no other text, in this exact shape:
 
     if (matches.isEmpty) {
       return AgentExecutionResult(
-        responseText: "I don't have a previous search to refer back to — "
+        responseText:
+            "I don't have a previous search to refer back to — "
             "what would you like me to look for?",
         agentName: name,
       );
@@ -822,7 +832,8 @@ Return JSON only, no other text, in this exact shape:
     }
     if (targetIndex >= matches.length) {
       return AgentExecutionResult(
-        responseText: "That's the oldest one I found - there isn't an "
+        responseText:
+            "That's the oldest one I found - there isn't an "
             "earlier match.",
         agentName: name,
       );
@@ -842,7 +853,8 @@ Return JSON only, no other text, in this exact shape:
 
     final target = matches[targetIndex];
 
-    final wantsContent = lower.contains('read') ||
+    final wantsContent =
+        lower.contains('read') ||
         lower.contains('open') ||
         lower.contains('say') ||
         lower.contains('about') ||
@@ -866,24 +878,28 @@ Return JSON only, no other text, in this exact shape:
     String question,
   ) async {
     try {
-      final full = await ToolManager.instance.executeTool('email', {
-            'type': 'get',
-            'id': matchMeta['id'],
-          })
-          as Map<String, String>;
+      final full =
+          await ToolManager.instance.executeTool('email', {
+                'type': 'get',
+                'id': matchMeta['id'],
+              })
+              as Map<String, String>;
 
-      final answer = await ToolManager.instance.executeTool('groq', {
-            'systemPrompt': 'You are the Email Agent. Answer the user\'s '
-                'question using only the content of this one email. Be '
-                'concise and direct.',
-            'message': "Email from: ${full['from']}\n"
-                "Subject: ${full['subject']}\n"
-                "Date: ${full['date']}\n\n"
-                "${full['body']}\n\n"
-                "Question: $question",
-            'history': const [],
-          })
-          as String;
+      final answer =
+          await ToolManager.instance.executeTool('groq', {
+                'systemPrompt':
+                    'You are the Email Agent. Answer the user\'s '
+                    'question using only the content of this one email. Be '
+                    'concise and direct.',
+                'message':
+                    "Email from: ${full['from']}\n"
+                    "Subject: ${full['subject']}\n"
+                    "Date: ${full['date']}\n\n"
+                    "${full['body']}\n\n"
+                    "Question: $question",
+                'history': const [],
+              })
+              as String;
 
       return AgentExecutionResult(
         responseText: answer,
@@ -956,15 +972,21 @@ Return JSON only, no other text, in this exact shape:
       buffer.writeln();
       buffer.writeln(m['snippet']);
     } else {
-      buffer.writeln("Found $totalFound matching email(s)"
-          "${totalFound > shown.length ? ', showing the ${shown.length} most recent' : ''}:");
+      buffer.writeln(
+        "Found $totalFound matching email(s)"
+        "${totalFound > shown.length ? ', showing the ${shown.length} most recent' : ''}:",
+      );
       buffer.writeln();
       for (final m in shown) {
-        buffer.writeln("- **${m['subject']}** from ${m['from']} (${m['date']})");
+        buffer.writeln(
+          "- **${m['subject']}** from ${m['from']} (${m['date']})",
+        );
       }
       buffer.writeln();
-      buffer.writeln("_Reply with \"the first one\", \"read it\", etc. to "
-          "see one in full._");
+      buffer.writeln(
+        "_Reply with \"the first one\", \"read it\", etc. to "
+        "see one in full._",
+      );
     }
 
     return buffer.toString().trim();
@@ -1179,9 +1201,9 @@ Return JSON only, no other text, in this exact shape:
     // signature-relevant facts, etc.) - lets composed emails reflect
     // what's actually known about the user instead of a generic voice.
     // email_agent.dart — correct
-if (context.domainContext.isNotEmpty) {
-  buffer.writeln(context.domainContext);
-}
+    if (context.domainContext.isNotEmpty) {
+      buffer.writeln(context.domainContext);
+    }
     if (context.rollingSummary.isNotEmpty) {
       buffer.writeln("Conversation so far: ${context.rollingSummary}");
       buffer.writeln();

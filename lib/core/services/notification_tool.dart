@@ -1,5 +1,5 @@
-import 'package:mimir_ai/core/services/notification_service.dart';
-import 'package:mimir_ai/features/agents/models/tool.dart';
+import 'package:cipher_ai/core/services/notification_service.dart';
+import 'package:cipher_ai/features/agents/models/tool.dart';
 
 /// Wraps the app's existing NotificationService for agent use.
 /// Registered as 'notification'.
@@ -31,7 +31,7 @@ class NotificationTool implements Tool {
       case 'show':
       case 'schedule':
         await NotificationService.showLocalNotification(
-          title: input['title'] as String? ?? 'Mimir AI',
+          title: input['title'] as String? ?? 'cipher AI',
           body: input['body'] as String? ?? '',
         );
         return 'shown';

@@ -1,7 +1,7 @@
-import 'package:mimir_ai/Knowledge/knowledge_retrieval_service.dart';
-import 'package:mimir_ai/Knowledge/knowledge_write_service.dart';
-import 'package:mimir_ai/Knowledge/query_plan.dart';
-import 'package:mimir_ai/Knowledge/query_planner_service.dart';
+import 'package:cipher_ai/Knowledge/knowledge_retrieval_service.dart';
+import 'package:cipher_ai/Knowledge/knowledge_write_service.dart';
+import 'package:cipher_ai/Knowledge/query_plan.dart';
+import 'package:cipher_ai/Knowledge/query_planner_service.dart';
 
 import '../../chat/services/chat_ai_service.dart';
 import '../core/agent_executor.dart';
@@ -56,7 +56,7 @@ class AgentService {
     print('  - Remember: ${plan.thingsToRemember}');
 
     // Persist anything new the planner noticed. KnowledgeWriteService
-    // now automatically handles overwriting old singular attributes 
+    // now automatically handles overwriting old singular attributes
     // (like jobs) vs appending list items (like projects)!
     final saveFuture = plan.thingsToRemember.isNotEmpty
         ? _knowledgeWrite.saveFacts(userId, plan.thingsToRemember)

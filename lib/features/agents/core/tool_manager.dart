@@ -1,8 +1,8 @@
-import 'package:mimir_ai/app/features/rss/models/rss_tool.dart';
-import 'package:mimir_ai/core/services/firebase_tool.dart';
-import 'package:mimir_ai/core/services/http_tool.dart';
-import 'package:mimir_ai/core/services/notification_tool.dart';
-import 'package:mimir_ai/features/agents/research_agent/research_tool.dart';
+import 'package:cipher_ai/app/features/rss/models/rss_tool.dart';
+import 'package:cipher_ai/core/services/firebase_tool.dart';
+import 'package:cipher_ai/core/services/http_tool.dart';
+import 'package:cipher_ai/core/services/notification_tool.dart';
+import 'package:cipher_ai/features/agents/research_agent/research_tool.dart';
 
 import '../models/tool.dart';
 import '../tools/email_tool.dart';
@@ -40,10 +40,7 @@ class ToolManager {
 
   Tool? getTool(String name) => _tools[name];
 
-  Future<dynamic> executeTool(
-    String name,
-    Map<String, dynamic> input,
-  ) async {
+  Future<dynamic> executeTool(String name, Map<String, dynamic> input) async {
     final tool = _tools[name];
 
     if (tool == null) {

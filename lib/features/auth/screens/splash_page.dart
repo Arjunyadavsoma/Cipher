@@ -26,8 +26,7 @@ class _SplashPageState extends State<SplashPage> {
     if (!mounted) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final seenOnboarding =
-        prefs.getBool('seen_onboarding') ?? false;
+    final seenOnboarding = prefs.getBool('seen_onboarding') ?? false;
 
     if (!seenOnboarding) {
       context.go('/onboarding');
@@ -37,10 +36,10 @@ class _SplashPageState extends State<SplashPage> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-  context.go('/login');
-} else {
-  context.go('/dashboard');
-}
+      context.go('/login');
+    } else {
+      context.go('/dashboard');
+    }
   }
 
   @override
@@ -52,25 +51,19 @@ class _SplashPageState extends State<SplashPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-              "assets/images/infinity_logo.png",
-              width: 120,
-              height: 120,
-            )
+                  "assets/images/infinity_logo.png",
+                  width: 120,
+                  height: 120,
+                )
                 .animate()
                 .fadeIn(duration: 800.ms)
-                .scale(
-                  begin: const Offset(0.7, 0.7),
-                  duration: 800.ms,
-                ),
+                .scale(begin: const Offset(0.7, 0.7), duration: 800.ms),
 
             const SizedBox(height: 24),
 
             const Text(
-              "Mimir AI",
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-              ),
+              "cipher AI",
+              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
             ).animate().fadeIn(delay: 300.ms),
 
             const SizedBox(height: 30),

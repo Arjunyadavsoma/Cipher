@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mimir_ai/features/agents/models/tool.dart';
-
+import 'package:cipher_ai/features/agents/models/tool.dart';
 
 /// Generic path-based Firestore access for agents that need arbitrary
 /// document/collection reads and writes beyond the fixed

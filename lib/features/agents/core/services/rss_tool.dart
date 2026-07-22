@@ -1,8 +1,7 @@
 import 'package:http/http.dart' as http;
-import 'package:mimir_ai/app/features/rss/models/rss_article.dart';
-import 'package:mimir_ai/features/agents/models/tool.dart';
+import 'package:cipher_ai/app/features/rss/models/rss_article.dart';
+import 'package:cipher_ai/features/agents/models/tool.dart';
 import 'package:xml/xml.dart';
-
 
 /// Wraps RSS feed fetching + XML parsing.
 ///
@@ -129,8 +128,18 @@ class RssTool implements Tool {
   }
 
   static const Map<String, int> _monthMap = {
-    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-    'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+    'Jan': 1,
+    'Feb': 2,
+    'Mar': 3,
+    'Apr': 4,
+    'May': 5,
+    'Jun': 6,
+    'Jul': 7,
+    'Aug': 8,
+    'Sep': 9,
+    'Oct': 10,
+    'Nov': 11,
+    'Dec': 12,
   };
 
   String _stripHtml(String input) {

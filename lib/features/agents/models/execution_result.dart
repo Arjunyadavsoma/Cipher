@@ -42,6 +42,13 @@ class AgentExecutionResult {
   final bool success;
   final String? errorMessage;
 
+  /// Optional per-agent memory patch. AgentExecutor merges this into
+  /// the agent's persisted context (Firestore, when contextStorage !=
+  /// none) after execute() returns - e.g. DsaHandlers uses this to
+  /// carry currentQuestion/hintLevel/interviewActive forward between
+  /// turns. Null means "no memory change this turn."
+  final Map<String, dynamic>? updatedMemory;
+
   const AgentExecutionResult({
     required this.responseText,
     required this.agentName,
@@ -52,6 +59,7 @@ class AgentExecutionResult {
     this.action,
     this.success = true,
     this.errorMessage,
+    this.updatedMemory,
   });
 
   factory AgentExecutionResult.failure({

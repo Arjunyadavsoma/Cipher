@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'package:mimir_ai/features/agents/core/tool_manager.dart' show ToolManager;
+import 'package:cipher_ai/features/agents/core/tool_manager.dart'
+    show ToolManager;
 
 class DsaIntentParser {
   final _toolManager = ToolManager.instance;
@@ -65,7 +66,6 @@ Output JSON only, in this exact shape:
       'systemPrompt': systemPrompt,
       'message': userMessage,
       'history': history,
-    
     });
 
     final text = raw is String ? raw : '';
@@ -95,7 +95,8 @@ Output JSON only, in this exact shape:
       final start = cleaned.indexOf('{');
       final end = cleaned.lastIndexOf('}');
       if (start == -1 || end == -1 || end <= start) return {};
-      return jsonDecode(cleaned.substring(start, end + 1)) as Map<String, dynamic>;
+      return jsonDecode(cleaned.substring(start, end + 1))
+          as Map<String, dynamic>;
     } catch (_) {
       return {'intent': 'other', 'responseText': 'Failed to parse intent.'};
     }

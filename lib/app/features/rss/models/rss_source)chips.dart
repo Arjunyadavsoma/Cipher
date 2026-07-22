@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mimir_ai/app/features/rss/models/rss_feed_source.dart';
+import 'package:cipher_ai/app/features/rss/models/rss_feed_source.dart';
 
 /// Horizontal scroller of feed-source chips, sitting directly below
 /// the welcome title — this is the "suggestion cards" surface

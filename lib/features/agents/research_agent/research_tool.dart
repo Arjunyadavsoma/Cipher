@@ -1,7 +1,7 @@
-import 'package:mimir_ai/features/agents/research_agent/providers/arxiv_provider.dart';
-import 'package:mimir_ai/features/agents/research_agent/providers/crossref_provider.dart';
-import 'package:mimir_ai/features/agents/research_agent/providers/paper_provider.dart';
-import 'package:mimir_ai/features/agents/research_agent/providers/semantic_scholar_provider.dart';
+import 'package:cipher_ai/features/agents/research_agent/providers/arxiv_provider.dart';
+import 'package:cipher_ai/features/agents/research_agent/providers/crossref_provider.dart';
+import 'package:cipher_ai/features/agents/research_agent/providers/paper_provider.dart';
+import 'package:cipher_ai/features/agents/research_agent/providers/semantic_scholar_provider.dart';
 
 import '../models/tool.dart';
 
@@ -46,11 +46,7 @@ class ResearchTool implements Tool {
       return {};
     }
 
-    final providers = <PaperProvider>[
-      _semantic,
-      _crossref,
-      _arxiv,
-    ];
+    final providers = <PaperProvider>[_semantic, _crossref, _arxiv];
 
     for (final provider in providers) {
       try {
@@ -82,18 +78,11 @@ class ResearchTool implements Tool {
       return [];
     }
 
-    final providers = <PaperProvider>[
-      _semantic,
-      _crossref,
-      _arxiv,
-    ];
+    final providers = <PaperProvider>[_semantic, _crossref, _arxiv];
 
     for (final provider in providers) {
       try {
-        final result = await provider.search(
-          query,
-          maxResults: maxResults,
-        );
+        final result = await provider.search(query, maxResults: maxResults);
 
         if (result.isNotEmpty) {
           return result;
