@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cipher_ai/Knowledge/knowledge_entry.dart';
-import 'package:cipher_ai/Knowledge/knowledge_Screen/knowledge_detail_page.dart'
-    as knowledge;
+
 import 'package:cipher_ai/Knowledge/knowledge_Screen/knowledge_provider.dart';
 import 'package:cipher_ai/Knowledge/knowledge_Screen/add_knowledge_sheet.dart';
 import 'package:cipher_ai/Knowledge/knowledge_Screen/knowledge_detail_page.dart';

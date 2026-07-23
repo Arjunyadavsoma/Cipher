@@ -1,5 +1,6 @@
+import 'package:cipher_ai/core/services/groq/api_key_manager_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cipher_ai/core/services/groq/ai_pooling.dart';
 import 'package:cipher_ai/core/services/groq/ai_provider.dart';
 
 class AiProviderSettingsScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class _AiProviderSettingsScreenState extends State<AiProviderSettingsScreen> {
   String? _selectedProviderId;
   String? _selectedModelId;
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -23,100 +25,161 @@ class _AiProviderSettingsScreenState extends State<AiProviderSettingsScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-
-    // 1. Load built-in providers directly
-    _providers = builtInProviders;
-
-    // 2. Load selection from SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    final savedProviderId = prefs.getString('ai_provider_id');
-    final savedModelId = prefs.getString('ai_model_id');
-
-    // Fall back to the first built-in provider's first model if nothing
-    // has been explicitly selected yet.
-    final fallbackProvider = _providers.first;
-    final fallbackModel = fallbackProvider.models.first;
-
     setState(() {
-      _selectedProviderId = savedProviderId ?? fallbackProvider.id;
-      
-      // Ensure the saved model actually belongs to the saved provider
-      AiProvider? currentProvider = _providers.firstWhere(
-        (p) => p.id == _selectedProviderId,
-        orElse: () => fallbackProvider,
-      );
-      
-      bool modelExists = currentProvider.models.any((m) => m.id == savedModelId);
-      _selectedModelId = (savedModelId != null && modelExists) 
-          ? savedModelId 
-          : fallbackModel.id;
-          
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+
+    try {
+      // 1. Load providers (built-ins + user overrides from Firestore).
+      final providers = await ProviderPoolService.instance.getProviders();
+
+      if (providers.isEmpty) {
+        setState(() {
+          _error = 'No providers available.';
+          _loading = false;
+        });
+        return;
+      }
+
+      // 2. Load saved selection from Firestore.
+      final saved = await ProviderPoolService.instance.getSelected();
+
+      // 3. Validate the saved selection against available providers.
+      String? providerId = saved?.providerId;
+      String? modelId = saved?.modelId;
+
+      // Fall back to first provider if saved one doesn't exist.
+      AiProvider? selectedProvider;
+      if (providerId != null) {
+        selectedProvider = providers.where((p) => p.id == providerId).firstOrNull;
+      }
+      selectedProvider ??= providers.first;
+      providerId = selectedProvider.id;
+
+      // Fall back to first model if saved one doesn't belong to provider.
+      if (modelId == null ||
+          !selectedProvider.models.any((m) => m.id == modelId)) {
+        modelId = selectedProvider.models.isNotEmpty
+            ? selectedProvider.models.first.id
+            : null;
+      }
+
+      setState(() {
+        _providers = providers;
+        _selectedProviderId = providerId;
+        _selectedModelId = modelId;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load settings: $e';
+        _loading = false;
+      });
+    }
   }
 
   AiProvider? get _selectedProvider {
     if (_selectedProviderId == null) return null;
-    for (final p in _providers) {
-      if (p.id == _selectedProviderId) return p;
-    }
-    return null;
+    return _providers
+        .where((p) => p.id == _selectedProviderId)
+        .firstOrNull;
   }
 
   Future<void> _selectProvider(AiProvider provider) async {
-    // Switching provider resets the model choice to that provider's
-    // first model.
-    final firstModel = provider.models.isNotEmpty
-        ? provider.models.first.id
-        : null;
-        
+    final firstModel =
+        provider.models.isNotEmpty ? provider.models.first.id : null;
+
     setState(() {
       _selectedProviderId = provider.id;
       _selectedModelId = firstModel;
     });
-    
+
     if (firstModel != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('ai_provider_id', provider.id);
-      await prefs.setString('ai_model_id', firstModel);
+      try {
+        await ProviderPoolService.instance.setSelected(
+          providerId: provider.id,
+          modelId: firstModel,
+        );
+      } catch (_) {
+        // Persist best-effort.
+      }
     }
   }
 
   Future<void> _selectModel(String modelId) async {
     setState(() => _selectedModelId = modelId);
-    
+
     final providerId = _selectedProviderId;
     if (providerId != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('ai_provider_id', providerId);
-      await prefs.setString('ai_model_id', modelId);
+      try {
+        await ProviderPoolService.instance.setSelected(
+          providerId: providerId,
+          modelId: modelId,
+        );
+      } catch (_) {
+        // Persist best-effort.
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
+
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('AI Provider & Model')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48),
+              const SizedBox(height: 16),
+              Text(_error!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _load,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final selectedProvider = _selectedProvider;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI Provider & Model'),
-        // Removed the "Add Provider" action button
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _load,
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // --- Provider section ---
           const Text(
             'Provider',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
           ..._providers.map((provider) {
-            // We assume hasApiKey is still accessible or we just show models available.
-            // If hasApiKey relies on the old service, we can just omit the subtitle or simplify it.
             final isSelected = provider.id == _selectedProviderId;
+            final hasKey = ProviderPoolService.instance.hasApiKey(provider);
+            final keyCount = ProviderPoolService.instance.getKeyCount(provider);
+            
+
             return Card(
               color: isSelected
                   ? Theme.of(context).colorScheme.primaryContainer
@@ -124,38 +187,104 @@ class _AiProviderSettingsScreenState extends State<AiProviderSettingsScreen> {
               child: ListTile(
                 title: Text(provider.name),
                 subtitle: Text(
-                  '${provider.models.length} models available',
+                  hasKey
+                      ? '${provider.models.length} models · $keyCount key${keyCount == 1 ? "" : "s"} configured'
+                      : '${provider.models.length} models · ⚠ No API key set',
                 ),
-                trailing: isSelected
-                    ? const Icon(Icons.check_circle)
-                    : null, // Removed delete button for built-ins
+                leading: Icon(
+                  hasKey ? Icons.check_circle : Icons.warning,
+                  color: hasKey ? Colors.green : Colors.orange,
+                ),
+                trailing: isSelected ? const Icon(Icons.radio_button_checked) : null,
                 onTap: () => _selectProvider(provider),
               ),
             );
-          }),
+          }),// Add this import at the top
+// import 'package:cipher_ai/core/services/groq/api_key_manager_screen.dart';
+
+// Inside the build method -> ListView children -> right after the _providers.map(...)
+const SizedBox(height: 16),
+SizedBox(
+  width: double.infinity,
+  child: OutlinedButton.icon(
+    icon: const Icon(Icons.vpn_key_outlined),
+    label: const Text('Manage & Test API Keys'),
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const ApiKeyManagerScreen(),
+        ),
+      );
+    },
+  ),
+),
+const SizedBox(height: 24),
+
+          // --- API key warning ---
+          if (selectedProvider != null &&
+              !ProviderPoolService.instance.hasApiKey(selectedProvider)) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber, color: Colors.orange),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'No API key found for ${selectedProvider.name}. '
+                      'Add "${selectedProvider.apiKeyEnvVar}" to your .env file. '
+                      'Multiple keys can be comma-separated.',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 24),
+
+          // --- Model section ---
           const Text(
             'Model',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
-          if (_selectedProvider == null)
+          if (selectedProvider == null)
             const Text('Select a provider first.')
+          else if (selectedProvider.models.isEmpty)
+            const Text('No models available for this provider.')
           else
-            ..._selectedProvider!.models.map((model) {
-              final isSelected = model.id == _selectedModelId;
+            ...selectedProvider.models.map((model) {
               return RadioListTile<String>(
-                title: Text(model.label),
+                title: Row(
+                  children: [
+                    Flexible(child: Text(model.label)),
+                    if (model.supportsThinking) ...[
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: 'Supports extended reasoning',
+                        child: Icon(
+                          Icons.psychology_outlined,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 subtitle: Text(
                   model.id,
-                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                  style: const TextStyle(
+                      fontSize: 12, fontFamily: 'monospace'),
                 ),
-                secondary: model.supportsThinking
-                    ? const Tooltip(
-                        message: 'Supports extended reasoning',
-                        child: Icon(Icons.psychology_outlined),
-                      )
-                    : null,
                 value: model.id,
                 groupValue: _selectedModelId,
                 onChanged: (value) {
