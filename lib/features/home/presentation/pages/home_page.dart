@@ -8,7 +8,8 @@ import '../widgets/drawer_view.dart';
 import '../widgets/suggestion_cards.dart';
 
 class HomePage extends ConsumerStatefulWidget {
-  const HomePage({super.key});
+  final String? initialChatId; 
+  const HomePage({super.key, this.initialChatId});
 
   @override
   ConsumerState<HomePage> createState() => _HomePageState();

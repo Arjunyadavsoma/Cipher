@@ -9,14 +9,12 @@ class KnowledgeEntry {
   final String layer;
   final String fact;
   final List<String> tags;
-
-  /// 0-1. Used to rank/trim when more matches exist than the retrieval
-  /// budget allows. Defaults to 0.5 for auto-captured facts; can be
-  /// bumped for facts the user stated explicitly ("remember that...").
   final double importance;
-
   final DateTime createdAt;
   final DateTime? lastUsedAt;
+  
+  // NEW: Vector embedding field (1024 dimensions for bge-m3)
+  final List<double>? embedding;
 
   const KnowledgeEntry({
     required this.id,
@@ -26,6 +24,7 @@ class KnowledgeEntry {
     this.importance = 0.5,
     required this.createdAt,
     this.lastUsedAt,
+    this.embedding,
   });
 
   Map<String, dynamic> toMap() {
@@ -36,6 +35,7 @@ class KnowledgeEntry {
       'importance': importance,
       'createdAt': createdAt.toIso8601String(),
       'lastUsedAt': lastUsedAt?.toIso8601String(),
+      if (embedding != null) 'embedding': embedding, // Store vector
     };
   }
 
@@ -52,12 +52,16 @@ class KnowledgeEntry {
       lastUsedAt: map['lastUsedAt'] != null
           ? DateTime.parse(map['lastUsedAt'] as String)
           : null,
+      embedding: map['embedding'] != null
+          ? List<double>.from(map['embedding'] as List)
+          : null,
     );
   }
 
   KnowledgeEntry copyWith({
     String? id,
     DateTime? lastUsedAt,
+    List<double>? embedding,
   }) {
     return KnowledgeEntry(
       id: id ?? this.id,
@@ -67,10 +71,12 @@ class KnowledgeEntry {
       importance: importance,
       createdAt: createdAt,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
+      embedding: embedding ?? this.embedding,
     );
   }
 }
 
+// (Keep KnowledgeLayers and KnowledgeTaxonomy exactly as they were)
 /// The fixed set of layers knowledge gets filed under. Kept as a const
 /// list (not a free-form string) so classification always lands on a
 /// known collection name rather than silently fragmenting into typo

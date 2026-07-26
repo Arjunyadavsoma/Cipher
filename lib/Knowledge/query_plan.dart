@@ -1,36 +1,35 @@
 class QueryPlan {
   final String agentName;
   final double confidence;
-  final List<String> requiredKnowledgeTags;
   final List<String> thingsToRemember;
-  final List<String> thingsToForget; // <-- NEW
+  final List<String> thingsToForget;
   final String cleanedQuery;
 
   const QueryPlan({
     required this.agentName,
     required this.confidence,
-    this.requiredKnowledgeTags = const [],
     this.thingsToRemember = const [],
-    this.thingsToForget = const [], // <-- NEW
+    this.thingsToForget = const [],
     this.cleanedQuery = '',
   });
 
-  factory QueryPlan.fromJson(Map<String, dynamic> json, String fallbackQuery) {
-    final tags = json["requiredKnowledgeTags"];
+  factory QueryPlan.fromJson(
+    Map<String, dynamic> json,
+    String fallbackQuery,
+    Set<String> validAgentNames,
+  ) {
     final memories = json["thingsToRemember"];
-    final forgets = json["thingsToForget"]; // <-- NEW
+    final forgets = json["thingsToForget"];
 
-    List<String> normalizeTags(List? raw) {
-      if (raw == null) return const [];
-      return raw.map((e) => e.toString().toLowerCase().trim()).where((t) => t.isNotEmpty).toList();
-    }
+    // Fallback to Default Chat Agent if the LLM hallucinates an agent name
+    final parsedAgent = (json["agent"] ?? "Default Chat Agent").toString();
+    final agentName = validAgentNames.contains(parsedAgent) ? parsedAgent : "Default Chat Agent";
 
     return QueryPlan(
-      agentName: (json["agent"] ?? "Default Chat Agent").toString(),
+      agentName: agentName,
       confidence: (json["confidence"] is num) ? (json["confidence"] as num).toDouble() : 0.0,
-      requiredKnowledgeTags: normalizeTags(tags is List ? tags : null),
       thingsToRemember: memories is List ? memories.map((e) => e.toString()).toList() : const [],
-      thingsToForget: forgets is List ? forgets.map((e) => e.toString()).toList() : const [], // <-- NEW
+      thingsToForget: forgets is List ? forgets.map((e) => e.toString()).toList() : const [],
       cleanedQuery: (json["query"]?.toString().trim().isNotEmpty ?? false) ? json["query"].toString() : fallbackQuery,
     );
   }

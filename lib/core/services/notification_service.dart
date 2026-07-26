@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'package:cipher_ai/app/router.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:go_router/go_router.dart'; // NEW
-import 'package:cipher_ai/app/app.dart'; // NEW
+import 'package:go_router/go_router.dart';
+
+// NEW: Import the router to access the global navigator key
+
 
 class NotificationService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
@@ -43,17 +47,40 @@ class NotificationService {
     });
   }
 
-  // NEW: Handle the notification tap using GoRouter
+  // NEW: Handle the notification tap using GoRouter and the payload
   static void _onNotificationTap(NotificationResponse response) {
-    final context = MimirAIApp.navigatorKey.currentContext;
-    if (context != null) {
-      // Use go_router to navigate to the root (HomePage) safely
-      GoRouter.of(context).go('/');
+    final payloadString = response.payload;
+    if (payloadString == null || payloadString.isEmpty) return;
+
+    try {
+      final data = jsonDecode(payloadString) as Map<String, dynamic>;
+      final type = data['type'];
+      final chatId = data['chatId'];
+
+      final context = rootNavigatorKey.currentContext;
+      if (context != null) {
+        if (type == 'research_complete' && chatId != null) {
+          // Deep link to the specific chat
+          GoRouter.of(context).push('/chat/$chatId');
+        } else {
+          // Default fallback to dashboard
+          GoRouter.of(context).go('/dashboard');
+        }
+      }
+    } catch (e) {
+      // If JSON parsing fails, just go home
+      final context = rootNavigatorKey.currentContext;
+      if (context != null) {
+        GoRouter.of(context).go('/dashboard');
+      }
     }
   }
 
   static Future<void> showNotification(RemoteMessage message) async {
     final notification = message.notification;
+    
+    // Convert the data payload to a JSON string so we can pass it to the local notification
+    final String payloadString = jsonEncode(message.data);
 
     await _localNotifications.show(
       message.hashCode,
@@ -69,6 +96,7 @@ class NotificationService {
           icon: '@mipmap/ic_launcher',
         ),
       ),
+      payload: payloadString, // Pass the payload here!
     );
   }
 

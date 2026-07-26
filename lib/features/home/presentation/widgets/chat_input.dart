@@ -5,6 +5,87 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:cipher_ai/core/services/voice/voice_recorder_service.dart';
 
+// ---------------------------------------------------------------------------
+// Agent mention metadata
+// ---------------------------------------------------------------------------
+class _AgentMention {
+  final String keyword; // e.g. "image"  -> inserted as "@image "
+  final String displayName;
+  final String description;
+  final IconData icon;
+  final Color tint;
+
+  const _AgentMention({
+    required this.keyword,
+    required this.displayName,
+    required this.description,
+    required this.icon,
+    required this.tint,
+  });
+}
+
+const List<_AgentMention> _kAgentMentions = [
+  _AgentMention(
+    keyword: 'image',
+    displayName: 'Image Agent',
+    description: 'Image generation & editing',
+    icon: Icons.auto_awesome_outlined,
+    tint: Color(0xFF8B5CF6),
+  ),
+  _AgentMention(
+    keyword: 'video',
+    displayName: 'Video Agent',
+    description: 'Video generation',
+    icon: Icons.play_circle_outline,
+    tint: Color(0xFFEC4899),
+  ),
+  _AgentMention(
+    keyword: 'dsa',
+    displayName: 'DSA Agent',
+    description: 'Daily DSA, practice & progress',
+    icon: Icons.code_rounded,
+    tint: Color(0xFF22C55E),
+  ),
+  _AgentMention(
+    keyword: 'interview',
+    displayName: 'Interview Agent',
+    description: 'Interview prep & research',
+    icon: Icons.work_outline_rounded,
+    tint: Color(0xFF3B82F6),
+  ),
+  _AgentMention(
+    keyword: 'mock',
+    displayName: 'Mock Interview',
+    description: 'Start a mock interview session',
+    icon: Icons.quiz_outlined,
+    tint: Color(0xFF3B82F6),
+  ),
+  _AgentMention(
+    keyword: 'news',
+    displayName: 'News Agent',
+    description: 'News & RSS retrieval',
+    icon: Icons.article_outlined,
+    tint: Color(0xFFF59E0B),
+  ),
+  _AgentMention(
+    keyword: 'email',
+    displayName: 'Email Agent',
+    description: 'Email drafting & Gmail',
+    icon: Icons.mail_outline_rounded,
+    tint: Color(0xFFEF4444),
+  ),
+  _AgentMention(
+    keyword: 'research',
+    displayName: 'Research Agent',
+    description: 'Academic papers & literature',
+    icon: Icons.school_outlined,
+    tint: Color(0xFF14B8A6),
+  ),
+];
+
+// ---------------------------------------------------------------------------
+// ChatInput
+// ---------------------------------------------------------------------------
 class ChatInput extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
@@ -29,14 +110,158 @@ class ChatInput extends StatefulWidget {
 
 class _ChatInputState extends State<ChatInput> {
   final VoiceRecorderService _recorderService = VoiceRecorderService();
+  final LayerLink _inputLayerLink = LayerLink();
 
   bool _isRecording = false;
   int _seconds = 0;
   Timer? _timer;
 
+  // ----- Mention popup state -----
+  OverlayEntry? _mentionOverlay;
+  int _mentionStartIndex = -1;
+  List<_AgentMention> _filteredMentions = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onTextChanged);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mention detection
+  // ---------------------------------------------------------------------------
+  void _onTextChanged() {
+    final text = widget.controller.text;
+    final selection = widget.controller.selection;
+
+    if (!mounted) return;
+
+    if (!selection.isValid || !selection.isCollapsed) {
+      _hideMentionOverlay();
+      return;
+    }
+
+    final cursor = selection.baseOffset;
+    if (cursor <= 0 || cursor > text.length) {
+      _hideMentionOverlay();
+      return;
+    }
+
+    final beforeCursor = text.substring(0, cursor);
+    final atIndex = beforeCursor.lastIndexOf('@');
+
+    if (atIndex == -1) {
+      _hideMentionOverlay();
+      return;
+    }
+
+    // The @ must be at the start of the text or right after whitespace
+    if (atIndex > 0) {
+      final prevChar = beforeCursor[atIndex - 1];
+      if (prevChar != ' ' && prevChar != '\n' && prevChar != '\t') {
+        _hideMentionOverlay();
+        return;
+      }
+    }
+
+    final query = beforeCursor.substring(atIndex + 1);
+
+    // A space ends the mention
+    if (query.contains(RegExp(r'\s'))) {
+      _hideMentionOverlay();
+      return;
+    }
+
+    // Only allow simple characters
+    if (query.isNotEmpty && !RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(query)) {
+      _hideMentionOverlay();
+      return;
+    }
+
+    // Trigger only after 3+ letters (per your requirement)
+    if (query.length < 3) {
+      _hideMentionOverlay();
+      return;
+    }
+
+    final lowerQuery = query.toLowerCase();
+    final matches = _kAgentMentions.where((m) {
+      return m.keyword.toLowerCase().contains(lowerQuery) ||
+          m.displayName.toLowerCase().contains(lowerQuery);
+    }).toList();
+
+    if (matches.isEmpty) {
+      _hideMentionOverlay();
+      return;
+    }
+
+    _mentionStartIndex = atIndex;
+    _filteredMentions = matches;
+
+    if (_mentionOverlay == null) {
+      _showMentionOverlay();
+    } else {
+      _mentionOverlay!.markNeedsBuild();
+    }
+  }
+
+  void _showMentionOverlay() {
+    if (!mounted) return;
+    _mentionOverlay = OverlayEntry(
+      builder: (context) => _MentionSuggestionList(
+        layerLink: _inputLayerLink,
+        suggestions: _filteredMentions,
+        onTap: _selectMention,
+      ),
+    );
+    Overlay.of(context).insert(_mentionOverlay!);
+  }
+
+  void _hideMentionOverlay() {
+    _mentionOverlay?.remove();
+    _mentionOverlay = null;
+    _mentionStartIndex = -1;
+  }
+
+  void _selectMention(_AgentMention mention) {
+    final text = widget.controller.text;
+    final selection = widget.controller.selection;
+    final cursor = selection.baseOffset;
+
+    // Hide first so the listener that fires during text update doesn't
+    // try to rebuild a stale overlay.
+    _mentionOverlay?.remove();
+    _mentionOverlay = null;
+
+    if (_mentionStartIndex < 0 || _mentionStartIndex >= cursor) {
+      _mentionStartIndex = -1;
+      return;
+    }
+
+    final replacement = '@${mention.keyword} ';
+    final newText =
+        text.substring(0, _mentionStartIndex) + replacement + text.substring(cursor);
+
+    _mentionStartIndex = -1;
+
+    widget.controller.text = newText;
+    // _mentionStartIndex was reset to -1, so compute cursor pos manually:
+// fallback
+    // Simpler & correct: cursor lands right after the inserted "@keyword "
+    widget.controller.selection = TextSelection.collapsed(
+      offset: newText.indexOf(replacement) + replacement.length,
+    );
+    // Keep focus on the field
+    FocusScope.of(context).requestFocus(FocusNode());
+  }
+
+  // ---------------------------------------------------------------------------
+  // Recording
+  // ---------------------------------------------------------------------------
   Future<void> _startRecording() async {
     try {
       await _recorderService.start();
+      _hideMentionOverlay();
       setState(() {
         _isRecording = true;
         _seconds = 0;
@@ -47,9 +272,8 @@ class _ChatInputState extends State<ChatInput> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Microphone error: $e")));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Microphone error: $e")));
       }
     }
   }
@@ -77,6 +301,9 @@ class _ChatInputState extends State<ChatInput> {
     return "$m:$s";
   }
 
+  // ---------------------------------------------------------------------------
+  // File picking
+  // ---------------------------------------------------------------------------
   Future<void> _pickFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -99,6 +326,7 @@ class _ChatInputState extends State<ChatInput> {
   }
 
   void _showAttachmentMenu() {
+    _hideMentionOverlay();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -153,11 +381,16 @@ class _ChatInputState extends State<ChatInput> {
 
   @override
   void dispose() {
+    _hideMentionOverlay();
+    widget.controller.removeListener(_onTextChanged);
     _timer?.cancel();
     _recorderService.dispose();
     super.dispose();
   }
 
+  // ---------------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -208,19 +441,27 @@ class _ChatInputState extends State<ChatInput> {
           icon: const Icon(Icons.add_rounded),
         ),
         Expanded(
-          child: TextField(
-            controller: widget.controller,
-            minLines: 1,
-            maxLines: 6,
-            textAlignVertical: TextAlignVertical.center,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              hintText: "Ask cipher",
-              border: InputBorder.none,
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(vertical: 14),
+          // CompositedTransformTarget lets the suggestion popup anchor
+          // itself to the top-left of the TextField.
+          child: CompositedTransformTarget(
+            link: _inputLayerLink,
+            child: TextField(
+              controller: widget.controller,
+              minLines: 1,
+              maxLines: 6,
+              textAlignVertical: TextAlignVertical.center,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText: "Ask cipher",
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 14),
+              ),
+              onSubmitted: (_) {
+                _hideMentionOverlay();
+                widget.onSend();
+              },
             ),
-            onSubmitted: (_) => widget.onSend(),
           ),
         ),
         IconButton(
@@ -228,7 +469,10 @@ class _ChatInputState extends State<ChatInput> {
           icon: const Icon(Icons.mic_none_rounded),
         ),
         GestureDetector(
-          onTap: widget.onSend,
+          onTap: () {
+            _hideMentionOverlay();
+            widget.onSend();
+          },
           child: Container(
             width: 38,
             height: 38,
@@ -297,6 +541,166 @@ class _ChatInputState extends State<ChatInput> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Mention suggestion popup
+// ---------------------------------------------------------------------------
+class _MentionSuggestionList extends StatelessWidget {
+  final LayerLink layerLink;
+  final List<_AgentMention> suggestions;
+  final void Function(_AgentMention) onTap;
+
+  const _MentionSuggestionList({
+    required this.layerLink,
+    required this.suggestions,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: CompositedTransformFollower(
+        link: layerLink,
+        targetAnchor: Alignment.topLeft,
+        followerAnchor: Alignment.bottomLeft,
+        offset: const Offset(12, -10),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 340, maxHeight: 300),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.black.withOpacity(.06)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(.12),
+                  blurRadius: 28,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+                  child: Text(
+                    "Agents",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: .6,
+                      color: Colors.black.withOpacity(.45),
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 4),
+                    itemCount: suggestions.length,
+                    itemBuilder: (context, index) {
+                      final m = suggestions[index];
+                      return _MentionTile(mention: m, onTap: () => onTap(m));
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MentionTile extends StatelessWidget {
+  final _AgentMention mention;
+  final VoidCallback onTap;
+
+  const _MentionTile({required this.mention, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: mention.tint.withOpacity(.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(mention.icon, size: 20, color: mention.tint),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RichText(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      text: TextSpan(
+                        style: DefaultTextStyle.of(context).style,
+                        children: [
+                          TextSpan(
+                            text: '@${mention.keyword}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: Colors.black,
+                            ),
+                          ),
+                          const TextSpan(text: '  '),
+                          TextSpan(
+                            text: mention.displayName,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black.withOpacity(.5),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      mention.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: Colors.black.withOpacity(.45),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Existing widgets (unchanged)
+// ---------------------------------------------------------------------------
 class _PendingAttachmentChip extends StatelessWidget {
   final String fileName;
   final VoidCallback onRemove;

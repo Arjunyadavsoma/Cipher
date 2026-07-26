@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:cipher_ai/core/services/groq/ai_provider.dart';
+import 'package:cipher_ai/features/agents/services/api_key_pool_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
@@ -10,6 +11,12 @@ class ChatService {
 
   static const String _baseUrl =
       'https://api.groq.com/openai/v1/chat/completions';
+
+  // Caps how many different keys sendMessageWithKeyPool will try before
+  // giving up. Bounded rather than "try every key in the pool" so a large
+  // pool (the .env comment above _keys mentions ~30 keys eventually)
+  // can't turn one bad burst into 30 sequential failed requests.
+  static const int _maxKeyPoolAttempts = 5;
 
   static const String _defaultSystemPrompt = """
 You are Mimir AI.
@@ -74,6 +81,71 @@ Give clear, accurate and practical answers.
     );
   }
 
+  /// Main entry point for the agent system's real (non-utility) calls -
+  /// e.g. the 'groq' tool that DefaultChatAgent and other user-facing
+  /// agents run through ToolManager. Every call pulls the least-used
+  /// available key from [ApiKeyPoolService], reports the outcome back to
+  /// the pool, and - only when the failure was a rate limit or an
+  /// invalid/revoked key - retries with the next least-used key instead of
+  /// failing the user's request outright. Any other kind of error (a
+  /// network issue, a malformed response, a Groq-side outage) is rethrown
+  /// immediately, since a different key wouldn't change that outcome.
+  ///
+  /// Wherever the 'groq' tool currently calls [sendMessage], point it at
+  /// this method instead - same parameters, drop-in replacement. Leave
+  /// [sendMessage] itself untouched; it's still what IntentGate,
+  /// IntentClassifier, and ContextSummarizerService should use.
+  Future<String> sendMessageWithKeyPool({
+    required String message,
+    List<Map<String, String>> history = const [],
+    String? systemPrompt,
+    double temperature = 0.7,
+    String model = "llama-3.3-70b-versatile",
+  }) async {
+    final pool = ApiKeyPoolService.instance;
+    final triedKeys = <String>{};
+    AiRequestException? lastError;
+
+    // Bound attempts by how many distinct keys actually exist (floor of 1
+    // so a single-key setup still gets its one attempt), capped at
+    // _maxKeyPoolAttempts so a big pool can't mean a long chain of
+    // sequential failures before the user sees an error.
+    final keyCount = pool.keyCount;
+    final maxAttempts = keyCount < 1
+        ? 1
+        : (keyCount < _maxKeyPoolAttempts ? keyCount : _maxKeyPoolAttempts);
+
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      final key = await pool.getNextKey();
+
+      // Every distinct key has already been tried this call (the pool
+      // recycles keys once all of them are quarantined) - one more loop
+      // would just repeat a failure already reported, so stop here.
+      if (!triedKeys.add(key)) break;
+
+      try {
+        final result = await _callGroq(
+          apiKey: key,
+          systemPrompt: systemPrompt ?? _defaultSystemPrompt,
+          message: message,
+          history: history,
+          temperature: temperature,
+          model: model,
+        );
+        await pool.reportSuccess(key);
+        return result;
+      } on AiRequestException catch (e) {
+        lastError = e;
+        final wasKeyIssue = await pool.reportFailure(key, error: e.message);
+        if (!wasKeyIssue) rethrow;
+        // Otherwise loop - getNextKey() will hand back the next
+        // least-used, non-quarantined key on the next iteration.
+      }
+    }
+
+    throw lastError ?? AiRequestException("No Groq API keys available to try");
+  }
+
   Future<String> _callGroq({
     required String apiKey,
     required String systemPrompt,
@@ -105,7 +177,8 @@ Give clear, accurate and practical answers.
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode != 200) {
-        final errorMessage = _extractErrorMessage(response.body) ??
+        final errorMessage =
+            _extractErrorMessage(response.body) ??
             "Groq API request failed (status ${response.statusCode})";
         throw AiRequestException(
           errorMessage,

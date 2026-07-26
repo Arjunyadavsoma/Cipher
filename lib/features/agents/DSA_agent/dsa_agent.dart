@@ -30,18 +30,15 @@ class DsaAgent implements BaseAgent {
 
   final DsaIntentParser _intentParser;
   final DsaHandlers _handlers;
+  final ToolManager _toolManager = ToolManager.instance;
 
-  // Fixed: previously constructed FirebaseDsaRepository() and
-  // GfgFetchService() twice - once into unused fields (_repository,
-  // _gfgService), once into _handlers. Built once now and passed
-  // through, matching what the analyzer's unused_field warnings flagged.
   DsaAgent()
-    : _intentParser = DsaIntentParser(),
-      _handlers = DsaHandlers(
-        FirebaseDsaRepository(),
-        GfgFetchService(),
-        ToolManager.instance,
-      );
+      : _intentParser = DsaIntentParser(),
+        _handlers = DsaHandlers(
+          FirebaseDsaRepository(),
+          GfgFetchService(),
+          ToolManager.instance,
+        );
 
   @override
   String get systemPrompt => DsaIntentParser.systemPrompt;
@@ -49,18 +46,14 @@ class DsaAgent implements BaseAgent {
   @override
   Future<AgentExecutionResult> execute(ExecutionContext context) async {
     try {
-      final history = context.recentMessages
-          .map((m) => m.toGroqFormat())
-          .toList();
+      final history = context.recentMessages.map((m) => m.toGroqFormat()).toList();
       final parsed = await _intentParser.parseIntent(context.message, history);
 
       final intent = parsed['intent'] as String? ?? 'other';
       final memory = context.agentMemory ?? {};
 
       final currentQuestion = memory['currentQuestion'] != null
-          ? DsaQuestion.fromMap(
-              Map<String, dynamic>.from(memory['currentQuestion']),
-            )
+          ? DsaQuestion.fromMap(Map<String, dynamic>.from(memory['currentQuestion']))
           : null;
       final hintLevel = memory['hintLevel'] as int? ?? 0;
       final interviewActive = memory['interviewActive'] as bool? ?? false;
@@ -73,11 +66,7 @@ class DsaAgent implements BaseAgent {
         case 'hint':
           return _handlers.handleHint(context, currentQuestion, hintLevel);
         case 'reveal_solution':
-          return _handlers.handleRevealSolution(
-            context,
-            currentQuestion,
-            parsed,
-          );
+          return _handlers.handleRevealSolution(context, currentQuestion, parsed);
         case 'review_code':
           return _handlers.handleReviewCode(context, currentQuestion, parsed);
         case 'complexity':
@@ -91,25 +80,25 @@ class DsaAgent implements BaseAgent {
         case 'revise':
           return _handlers.handleRevise(context);
         case 'interview_mode':
-          return _handlers.handleInterviewMode(
-            context,
-            currentQuestion,
-            interviewActive,
-          );
+          return _handlers.handleInterviewMode(context, currentQuestion, interviewActive);
         default:
+          // PRO FIX: If intent is 'other', actually answer the DSA question!
+          final response = await _toolManager.executeTool('groq', {
+            'systemPrompt': 'You are an expert DSA tutor. Provide a clear, concise answer to the user\'s question.',
+            'message': context.message,
+            'history': history,
+          });
+          
           return AgentExecutionResult(
-            responseText:
-                "I'm the DSA Agent. I can fetch today's problem, give hints, "
-                "review code, and run mock interviews. What would you like to do?",
+            responseText: response as String,
             agentName: name,
+            usedTools: const ['groq'],
           );
       }
     } catch (e, st) {
-      // ignore: avoid_print
       print('DsaAgent.execute failed: $e\n$st');
       return AgentExecutionResult(
-        responseText:
-            "I encountered an error processing your DSA request. Please try again.",
+        responseText: "I encountered an error processing your DSA request. Please try again.",
         agentName: name,
         success: false,
         errorMessage: '$e\n$st',

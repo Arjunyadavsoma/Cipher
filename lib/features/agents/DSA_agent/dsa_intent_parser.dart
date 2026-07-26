@@ -1,22 +1,9 @@
 import 'dart:convert';
-import 'package:cipher_ai/features/agents/core/tool_manager.dart'
-    show ToolManager;
+import 'package:cipher_ai/features/agents/core/tool_manager.dart';
 
 class DsaIntentParser {
   final _toolManager = ToolManager.instance;
 
-  /// Classifier-voiced system prompt - deliberately NOT framed as "you
-  /// are a mentor/coach" the way the tutoring handlers in
-  /// dsa_handlers.dart are. That persona framing was the actual bug:
-  /// combined with GroqTool defaulting to temperature 0.7 (no way to
-  /// override it before), the model treated "senior competitive
-  /// programmer, interview coach, personal mentor" as an invitation to
-  /// answer conversationally instead of emitting strict JSON, so most
-  /// messages failed to parse and silently fell back to 'other'. Same
-  /// failure mode IntentClassifier's own comments describe for the
-  /// identical reason - this prompt now follows that file's established
-  /// classifier-voice convention instead, and pairs it with a real low
-  /// temperature (see parseIntent below).
   static const String systemPrompt = '''
 You are a routing and field-extraction classifier for a DSA (Data
 Structures & Algorithms) learning assistant, not a conversational tutor.
@@ -27,12 +14,9 @@ JSON object.
 Classify the user's message into exactly one of these intents:
 
 - GET_POTD         : User wants today's GeeksforGeeks Problem of the Day.
-  (e.g., "today's problem", "problem of the day", "GFG problem", "what
-  is the potd?", "give me the geeksforgeeks question")
 - EXPLAIN          : User wants an explanation of a problem or concept.
 - HINT             : User is stuck and wants a hint.
-- REVEAL_SOLUTION  : User explicitly gives up and asks for the code/
-  answer. (e.g., "show me the solution", "give up", "what is the code")
+- REVEAL_SOLUTION  : User explicitly gives up and asks for the code/answer.
 - REVIEW_CODE      : User has pasted code and wants a review.
 - COMPLEXITY       : User asks for time/space complexity analysis.
 - DRY_RUN          : User wants a step-by-step dry run of code/input.
@@ -62,17 +46,18 @@ Output JSON only, in this exact shape:
     String userMessage,
     List<Map<String, String>> history,
   ) async {
+    // PRO FIX: Explicitly pass temperature: 0.0 to force strict JSON
     final raw = await _toolManager.executeTool('groq', {
       'systemPrompt': systemPrompt,
       'message': userMessage,
       'history': history,
+      'temperature': 0.0,
     });
 
     final text = raw is String ? raw : '';
     final parsed = _parseJson(text);
 
     if (parsed.isEmpty || parsed['intent'] == null) {
-      // ignore: avoid_print
       print('DsaIntentParser: unparseable/empty response: "$text"');
     }
 
@@ -95,8 +80,7 @@ Output JSON only, in this exact shape:
       final start = cleaned.indexOf('{');
       final end = cleaned.lastIndexOf('}');
       if (start == -1 || end == -1 || end <= start) return {};
-      return jsonDecode(cleaned.substring(start, end + 1))
-          as Map<String, dynamic>;
+      return jsonDecode(cleaned.substring(start, end + 1)) as Map<String, dynamic>;
     } catch (_) {
       return {'intent': 'other', 'responseText': 'Failed to parse intent.'};
     }

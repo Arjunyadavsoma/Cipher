@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cipher_ai/Knowledge/knowledge_Screen/knowledge_page.dart';
-import 'package:cipher_ai/app/app.dart';
 
 import 'package:cipher_ai/app/features/auth/data/onboarding/screens/onboarding_page.dart';
 import 'package:cipher_ai/features/auth/presentation/forgot_password/check_email_page.dart';
@@ -16,11 +15,14 @@ import '../../features/auth/screens/signup_page.dart';
 import '../../features/auth/screens/splash_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 
+// 1. Define the navigator key globally so main.dart and the router can share it
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = FirebaseAuth.instance;
 
   return GoRouter(
-    navigatorKey: MimirAIApp.navigatorKey,
+    navigatorKey: rootNavigatorKey, // 2. Use the global key here
     initialLocation: "/",
     refreshListenable: GoRouterRefreshStream(auth.authStateChanges()),
 
@@ -78,11 +80,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: "/check-email",
         builder: (context, state) {
           final email = state.extra as String;
-
           return CheckEmailPage(email: email);
         },
       ),
+      
       GoRoute(path: "/dashboard", builder: (_, __) => const HomePage()),
+
+            // 3. ADDED: Deep link route for chat notifications
+      GoRoute(
+        path: '/chat/:chatId',
+        builder: (context, state) {
+          final chatId = state.pathParameters['chatId']!;
+          // Pass the chatId as initialChatId
+          return HomePage(initialChatId: chatId); 
+        },
+      ),
     ],
   );
 });

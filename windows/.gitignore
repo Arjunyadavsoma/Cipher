@@ -1,17 +1,193 @@
-flutter/ephemeral/
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+.mypy_cache/
+.idea/
+.vscode/
+*.iml
 
-# Visual Studio user-specific files.
+# Flutter/Dart/Pub
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+
+# Flutter Generated
+**/generated_plugin_registrant.dart
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Dart
+doc/api/
+.dartdoc/
+
+# Coverage
+coverage/
+lcov.info
+
+# Test
+test/.test_coverage/
+
+# Firebase
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+
+# Crashlytics
+crashlytics-build.properties
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Secrets
+*.jks
+*.keystore
+key.properties
+google-services.json.bak
+GoogleService-Info.plist.bak
+
+# Android Studio
+/android/.gradle/
+/android/captures/
+/android/local.properties
+/android/**/GeneratedPluginRegistrant.java
+
+# Android build
+/android/app/debug/
+/android/app/profile/
+/android/app/release/
+
+# Android NDK
+.cxx/
+externalNativeBuild/
+
+# IntelliJ
+out/
+
+# iOS
+**/ios/.symlinks/
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/flutter.podspec
+**/ios/Pods/
+**/ios/Runner.xcworkspace/
+**/ios/build/
+
+# CocoaPods
+Podfile.lock
+
+# macOS
+**/macos/Flutter/ephemeral/
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Pods/
+**/macos/build/
+
+# Linux
+**/linux/flutter/ephemeral/
+**/linux/build/
+
+# Windows
+**/windows/flutter/ephemeral/
+
+# Visual Studio user-specific files
 *.suo
 *.user
 *.userosscache
 *.sln.docstates
 
-# Visual Studio build-related files.
+# Visual Studio build-related files
 x64/
 x86/
 
 # Visual Studio cache files
-# files ending in .cache can be ignored
 *.[Cc]ache
-# but keep track of directories ending in .cache
 !*.[Cc]ache/
+
+# Windows build
+/windows/runner/Debug/
+/windows/runner/Release/
+/windows/build/
+
+# Fuchsia
+.fuchsia/
+
+# Web
+/web/.dart_tool/
+/web/build/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.old
+*.lock
+
+# Archives
+*.zip
+*.tar
+*.gz
+*.7z
+
+# Node (if used)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-lock.yaml
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+supabase/.cache/
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# Cursor
+.cursor/
+
+# Codium
+.vscode-oss/
+
+# Fleet
+.fleet/
+
+# Generated files
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Certificates
+*.p12
+*.pem
+*.crt
+*.cer

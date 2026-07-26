@@ -7,10 +7,6 @@ import 'router.dart';
 class MimirAIApp extends ConsumerWidget {
   const MimirAIApp({super.key});
 
-  // NEW: Global key for navigating from notification taps
-  static final GlobalKey<NavigatorState> navigatorKey =
-      GlobalKey<NavigatorState>();
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);

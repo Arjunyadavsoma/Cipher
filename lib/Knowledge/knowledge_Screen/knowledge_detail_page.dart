@@ -34,12 +34,13 @@ class KnowledgeDetailPage extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
             onPressed: () async {
+              if (uid == null) return; // Null check safety
+
               await ref
                   .read(knowledgeRepositoryProvider)
                   .deleteEntry(
-                    userId: uid!,
-                    layer: entry.layer,
-                    entryId: entry.id,
+                    userId: uid,
+                    entryId: entry.id, // Removed the 'layer' parameter
                   );
               if (context.mounted) Navigator.pop(context);
             },

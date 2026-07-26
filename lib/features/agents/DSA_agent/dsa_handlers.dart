@@ -5,16 +5,6 @@ import 'package:cipher_ai/features/agents/core/tool_manager.dart';
 import 'package:cipher_ai/features/agents/models/execution_context.dart';
 import 'package:cipher_ai/features/agents/models/execution_result.dart';
 
-/// Implements every intent DsaIntentParser can classify. Kept separate
-/// from DsaAgent so agent.execute() stays a thin router - each handler
-/// here owns one conversational responsibility (fetch POTD, give a
-/// hint, review code, etc).
-///
-/// ASSUMPTION: AgentExecutionResult supports an optional `updatedMemory`
-/// map that AgentExecutor persists back to Firestore after execute()
-/// returns - the same sticky-state pattern EmailAgent/ResearchAgent use
-/// for pendingDraft/lastPaper. If your ExecutionResult model uses a
-/// different field name, rename `updatedMemory` below to match.
 class DsaHandlers {
   final DsaRepository _repo;
   final GfgFetchService _gfg;
@@ -45,9 +35,7 @@ class DsaHandlers {
       );
     } catch (e) {
       return AgentExecutionResult(
-        responseText:
-            "I couldn't fetch today's problem right now (${e.toString()}). "
-            "GeeksforGeeks may be temporarily blocking requests - try again shortly.",
+        responseText: "I couldn't fetch today's problem right now. Please try again shortly.",
         agentName: 'DSA Agent',
         success: false,
       );
@@ -61,14 +49,8 @@ class DsaHandlers {
     if (currentQuestion == null) return _noActiveQuestion();
 
     final response = await _toolManager.executeTool('groq', {
-      'systemPrompt':
-          'You are a patient DSA tutor. Explain the approach '
-          'to solve this problem clearly, in plain language, without '
-          'giving away the full code unless asked.',
-      'message':
-          'Problem: ${currentQuestion.title}\n\n'
-          '${currentQuestion.description}\n\n'
-          'Explain how to approach this problem.',
+      'systemPrompt': 'You are a patient DSA tutor. Explain the approach to solve this problem clearly, in plain language, without giving away the full code unless asked.',
+      'message': 'Problem: ${currentQuestion.title}\n\n${currentQuestion.description}\n\nExplain how to approach this problem.',
     });
 
     return AgentExecutionResult(
@@ -85,21 +67,15 @@ class DsaHandlers {
   ) async {
     if (currentQuestion == null) return _noActiveQuestion();
 
-    // Progressive hints: level 0 = nudge, level 1 = approach, level 2+ = near-solution.
     final hintPrompt = switch (hintLevel) {
-      0 =>
-        'Give a very small nudge - just point at the right data structure or pattern, nothing more.',
-      1 =>
-        'Give a more concrete hint about the approach, but do not write code.',
-      _ =>
-        'Give a strong hint close to the solution approach, still no full code.',
+      0 => 'Give a very small nudge - just point at the right data structure or pattern, nothing more.',
+      1 => 'Give a more concrete hint about the approach, but do not write code.',
+      _ => 'Give a strong hint close to the solution approach, still no full code.',
     };
 
     final response = await _toolManager.executeTool('groq', {
-      'systemPrompt':
-          'You are a DSA tutor giving progressive hints. $hintPrompt',
-      'message':
-          'Problem: ${currentQuestion.title}\n\n${currentQuestion.description}',
+      'systemPrompt': 'You are a DSA tutor giving progressive hints. $hintPrompt',
+      'message': 'Problem: ${currentQuestion.title}\n\n${currentQuestion.description}',
     });
 
     return AgentExecutionResult(
@@ -122,11 +98,8 @@ class DsaHandlers {
 
     final language = parsed['language'] as String? ?? 'Python';
     final response = await _toolManager.executeTool('groq', {
-      'systemPrompt':
-          'You are a DSA tutor. Provide a clean, well-commented '
-          'solution in $language, followed by a brief explanation of the approach.',
-      'message':
-          'Problem: ${currentQuestion.title}\n\n${currentQuestion.description}',
+      'systemPrompt': 'You are a DSA tutor. Provide a clean, well-commented solution in $language, followed by a brief explanation of the approach.',
+      'message': 'Problem: ${currentQuestion.title}\n\n${currentQuestion.description}',
     });
 
     return AgentExecutionResult(
@@ -144,19 +117,14 @@ class DsaHandlers {
     final code = parsed['code'] as String? ?? '';
     if (code.trim().isEmpty) {
       return AgentExecutionResult(
-        responseText:
-            "I don't see any code to review - paste your solution and I'll take a look.",
+        responseText: "I don't see any code to review - paste your solution and I'll take a look.",
         agentName: 'DSA Agent',
       );
     }
 
     final response = await _toolManager.executeTool('groq', {
-      'systemPrompt':
-          'You are a senior engineer reviewing DSA interview code. '
-          'Check correctness, edge cases, time/space complexity, and style. Be direct and specific.',
-      'message':
-          'Problem context: ${currentQuestion?.title ?? "not specified"}\n\n'
-          'Code:\n```${parsed['language'] ?? ''}\n$code\n```',
+      'systemPrompt': 'You are a senior engineer reviewing DSA interview code. Check correctness, edge cases, time/space complexity, and style. Be direct and specific.',
+      'message': 'Problem context: ${currentQuestion?.title ?? "not specified"}\n\nCode:\n```${parsed['language'] ?? ''}\n$code\n```',
     });
 
     return AgentExecutionResult(
@@ -177,9 +145,7 @@ class DsaHandlers {
         : 'the problem "${currentQuestion?.title ?? "the current problem"}"';
 
     final response = await _toolManager.executeTool('groq', {
-      'systemPrompt':
-          'Analyze time and space complexity precisely (Big-O), '
-          'explain the reasoning briefly, and note the dominant operation.',
+      'systemPrompt': 'Analyze time and space complexity precisely (Big-O), explain the reasoning briefly, and note the dominant operation.',
       'message': 'Analyze the time and space complexity of $target',
     });
 
@@ -198,16 +164,13 @@ class DsaHandlers {
     final code = parsed['code'] as String? ?? '';
     if (code.trim().isEmpty) {
       return AgentExecutionResult(
-        responseText:
-            "Paste the code you'd like me to dry-run, along with sample input if you have one.",
+        responseText: "Paste the code you'd like me to dry-run, along with sample input if you have one.",
         agentName: 'DSA Agent',
       );
     }
 
     final response = await _toolManager.executeTool('groq', {
-      'systemPrompt':
-          'Perform a clear step-by-step dry run / trace of this code '
-          'with a representative input, showing variable states at each step.',
+      'systemPrompt': 'Perform a clear step-by-step dry run / trace of this code with a representative input, showing variable states at each step.',
       'message': 'Code:\n```${parsed['language'] ?? ''}\n$code\n```',
     });
 
@@ -227,9 +190,7 @@ class DsaHandlers {
     await _repo.saveQuestionForUser(context.userId, currentQuestion);
 
     return AgentExecutionResult(
-      responseText:
-          "Saved **${currentQuestion.title}** to your bookmarks. "
-          "Ask me to 'list saved questions' anytime to revisit it.",
+      responseText: "Saved **${currentQuestion.title}** to your bookmarks. Ask me to 'list saved questions' anytime to revisit it.",
       agentName: 'DSA Agent',
       usedTools: const ['firebase'],
     );
@@ -240,8 +201,7 @@ class DsaHandlers {
 
     if (saved.isEmpty) {
       return AgentExecutionResult(
-        responseText:
-            "You haven't saved any questions yet. Solve or fetch a problem, then ask me to save it.",
+        responseText: "You haven't saved any questions yet. Solve or fetch a problem, then ask me to save it.",
         agentName: 'DSA Agent',
         usedTools: const ['firebase'],
       );
@@ -260,8 +220,7 @@ class DsaHandlers {
 
     if (saved.isEmpty) {
       return AgentExecutionResult(
-        responseText:
-            "Nothing saved to revise yet - save a few problems first and I'll quiz you on them.",
+        responseText: "Nothing saved to revise yet - save a few problems first and I'll quiz you on them.",
         agentName: 'DSA Agent',
         usedTools: const ['firebase'],
       );
@@ -271,9 +230,7 @@ class DsaHandlers {
     final pick = saved.first;
 
     return AgentExecutionResult(
-      responseText:
-          "Revision time! **${pick.title}** (${pick.difficulty})\n\n"
-          "${pick.description}\n\nTry solving it again - ask for a hint if you're stuck.",
+      responseText: "Revision time! **${pick.title}** (${pick.difficulty})\n\n${pick.description}\n\nTry solving it again - ask for a hint if you're stuck.",
       agentName: 'DSA Agent',
       usedTools: const ['firebase'],
       updatedMemory: {'currentQuestion': pick.toMap(), 'hintLevel': 0},
@@ -286,17 +243,10 @@ class DsaHandlers {
     bool interviewActive,
   ) async {
     if (!interviewActive) {
-      final question =
-          currentQuestion ??
-          await _repo.getTodaysQuestion() ??
-          await _gfg.fetchProblemOfTheDay();
+      final question = currentQuestion ?? await _repo.getTodaysQuestion() ?? await _gfg.fetchProblemOfTheDay();
 
       return AgentExecutionResult(
-        responseText:
-            "**Interview mode started.** I'll act as your interviewer - "
-            "no hints unless you ask, and I'll evaluate your approach as you go.\n\n"
-            "Problem: **${question.title}** (${question.difficulty})\n\n${question.description}\n\n"
-            "Talk me through your approach.",
+        responseText: "**Interview mode started.** I'll act as your interviewer - no hints unless you ask, and I'll evaluate your approach as you go.\n\nProblem: **${question.title}** (${question.difficulty})\n\n${question.description}\n\nTalk me through your approach.",
         agentName: 'DSA Agent',
         updatedMemory: {
           'currentQuestion': question.toMap(),
@@ -307,10 +257,7 @@ class DsaHandlers {
     }
 
     final response = await _toolManager.executeTool('groq', {
-      'systemPrompt':
-          'You are a technical interviewer conducting a mock DSA interview. '
-          "Respond to the candidate's reasoning realistically - ask clarifying "
-          'questions, push on edge cases, and don\'t over-help unless they\'re truly stuck.',
+      'systemPrompt': 'You are a technical interviewer conducting a mock DSA interview. Respond to the candidate\'s reasoning realistically - ask clarifying questions, push on edge cases, and don\'t over-help unless they\'re truly stuck.',
       'message': context.message,
     });
 
@@ -323,9 +270,7 @@ class DsaHandlers {
 
   AgentExecutionResult _noActiveQuestion() {
     return AgentExecutionResult(
-      responseText:
-          "You don't have an active problem right now. "
-          "Ask for today's problem of the day to get started.",
+      responseText: "You don't have an active problem right now. Ask for today's problem of the day to get started.",
       agentName: 'DSA Agent',
     );
   }

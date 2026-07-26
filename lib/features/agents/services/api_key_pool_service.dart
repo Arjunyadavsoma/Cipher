@@ -39,6 +39,11 @@ class ApiKeyPoolService {
     );
   }
 
+  /// Number of distinct keys currently configured in .env. Callers that
+  /// retry across the pool (e.g. ChatService.sendMessageWithKeyPool) use
+  /// this to bound their retry loop instead of guessing a fixed count.
+  int get keyCount => _keys.length;
+
   Future<String> getNextKey() async {
     final keys = _keys;
 
@@ -115,7 +120,13 @@ class ApiKeyPoolService {
     }, SetOptions(merge: true));
   }
 
-  Future<void> reportFailure(String key, {required String error}) async {
+  /// Records a failed call for [key]. Returns true when the failure was
+  /// classified as a key-specific problem (rate limit or invalid/revoked
+  /// key) - the signal callers use to decide whether trying a different
+  /// key is worth it. Returns false for anything else (network errors,
+  /// malformed responses, a Groq-side outage, etc.), where a different
+  /// key would just fail the exact same way.
+  Future<bool> reportFailure(String key, {required String error}) async {
     final lowerError = error.toLowerCase();
     final isRateLimit = error.contains('429') || lowerError.contains('rate limit');
     final isAuthFailure = error.contains('401') ||
@@ -129,7 +140,7 @@ class ApiKeyPoolService {
         'cooldownUntil':
             DateTime.now().add(const Duration(minutes: 2)).toIso8601String(),
       }, SetOptions(merge: true));
-      return;
+      return true;
     }
 
     if (isAuthFailure) {
@@ -142,7 +153,10 @@ class ApiKeyPoolService {
         'lastError': error,
         'invalidatedAt': DateTime.now().toIso8601String(),
       }, SetOptions(merge: true));
+      return true;
     }
+
+    return false;
   }
 
   /// Uses a short suffix of the key as the Firestore doc ID instead of the

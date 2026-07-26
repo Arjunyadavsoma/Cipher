@@ -1,3 +1,8 @@
+import com.android.build.gradle.BaseExtension
+import org.gradle.api.file.Directory
+import org.gradle.api.tasks.Delete
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 allprojects {
     repositories {
         google()
@@ -5,34 +10,31 @@ allprojects {
     }
 }
 
-val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
+val newBuildDir: Directory =
+    rootProject.layout.buildDirectory.dir("../../build").get()
 rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {
-    val newSubprojectBuildDir: Directory = rootProject.layout.buildDirectory.dir(project.name).get()
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
-}
+    val newSubprojectBuildDir: Directory =
+        rootProject.layout.buildDirectory.dir(name).get()
+    layout.buildDirectory.value(newSubprojectBuildDir)
 
-subprojects {
-    // 1. Force all Android plugins to use Java 17 BEFORE they are evaluated
-    project.plugins.withId("com.android.base") {
-        project.extensions.configure<com.android.build.gradle.BaseExtension> {
+    plugins.withId("com.android.base") {
+        extensions.configure<BaseExtension> {
             compileOptions {
                 sourceCompatibility = JavaVersion.VERSION_17
                 targetCompatibility = JavaVersion.VERSION_17
             }
         }
     }
-    
-    // 2. Force all Kotlin plugins to use JVM 17
-    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+
+    tasks.withType<KotlinCompile>().configureEach {
         kotlinOptions {
             jvmTarget = "17"
         }
     }
 
-    // 3. Evaluate dependencies AFTER overrides are in place
-    project.evaluationDependsOn(":app")
+    evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {
