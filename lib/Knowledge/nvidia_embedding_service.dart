@@ -7,7 +7,7 @@ class NvidiaEmbeddingService {
   static final NvidiaEmbeddingService instance = NvidiaEmbeddingService._internal();
 
   // 🔴 PASTE YOUR NEW REGENERATED KEY HERE
-  final String _apiKey = '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'; 
+  final String _apiKey = 'nvapi-vjEQz8vAn9FYAqwtTFasn8lCOMK'; 
 
   static const String _model = 'nvidia/nemotron-3-embed-1b';
   static const String _url = 'https://integrate.api.nvidia.com/v1/embeddings';
