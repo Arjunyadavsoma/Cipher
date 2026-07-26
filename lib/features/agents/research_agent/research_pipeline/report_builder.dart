@@ -23,7 +23,7 @@ class ReportBuilder {
 
     try {
       final response = await _toolManager.executeTool('groq', {
-        'systemPrompt': 'You are a professional research analyst. Write clear, concise, and authoritative reports.',
+        'systemPrompt': prompt,
         'message': buffer.toString(),
         'temperature': 0.2,
       }) as String;

@@ -69,6 +69,14 @@ class DrawerView extends StatelessWidget {
                             );
                           },
                         ),
+                        // Add this to your DrawerView widget list:
+ListTile(
+  leading: const Icon(Icons.bug_report_outlined),
+  title: const Text("Debug Console"),
+  onTap: () {
+    context.push('/debug'); // Make sure to import go_router
+  },
+),
                         _DrawerTile(
                           icon: Icons.science_outlined,
                           title: "Playground",

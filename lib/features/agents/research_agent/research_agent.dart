@@ -3,7 +3,7 @@ import 'package:cipher_ai/features/agents/research_agent/research_pipeline/cache
 import 'package:cipher_ai/features/agents/research_agent/research_pipeline/planner.dart';
 import 'package:cipher_ai/features/agents/research_agent/research_pipeline/report_builder.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/foundation.dart' show compute;
+
 import 'package:flutter_background_service/flutter_background_service.dart';
 import '../core/base_agent.dart';
 import '../core/tool_manager.dart';

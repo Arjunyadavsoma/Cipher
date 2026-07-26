@@ -1,9 +1,5 @@
 /// A single atomic fact stored under a knowledge layer
-/// (users/{uid}/knowledge/{layer}/entries/{entryId}).
-///
-/// Kept deliberately short ("Works as backend eng at Stripe", not a
-/// paragraph) - this is what makes tag-based retrieval cheap and keeps
-/// injected prompt context small. One idea per entry.
+/// (users/{uid}/knowledge_entries/{entryId}).
 class KnowledgeEntry {
   final String id;
   final String layer;
@@ -13,7 +9,11 @@ class KnowledgeEntry {
   final DateTime createdAt;
   final DateTime? lastUsedAt;
   
-  // NEW: Vector embedding field (1024 dimensions for bge-m3)
+  // NEW FIELDS FOR SCORING
+  final int accessCount;
+  final DateTime? lastAccessed;
+  
+  // VECTOR EMBEDDING
   final List<double>? embedding;
 
   const KnowledgeEntry({
@@ -24,6 +24,8 @@ class KnowledgeEntry {
     this.importance = 0.5,
     required this.createdAt,
     this.lastUsedAt,
+    this.accessCount = 0,
+    this.lastAccessed,
     this.embedding,
   });
 
@@ -35,7 +37,9 @@ class KnowledgeEntry {
       'importance': importance,
       'createdAt': createdAt.toIso8601String(),
       'lastUsedAt': lastUsedAt?.toIso8601String(),
-      if (embedding != null) 'embedding': embedding, // Store vector
+      'accessCount': accessCount,
+      'lastAccessed': lastAccessed?.toIso8601String(),
+      if (embedding != null) 'embedding': embedding,
     };
   }
 
@@ -46,14 +50,12 @@ class KnowledgeEntry {
       fact: map['fact'] as String? ?? '',
       tags: List<String>.from(map['tags'] as List? ?? const []),
       importance: (map['importance'] as num?)?.toDouble() ?? 0.5,
-      createdAt: map['createdAt'] != null
-          ? DateTime.parse(map['createdAt'] as String)
-          : DateTime.now(),
-      lastUsedAt: map['lastUsedAt'] != null
-          ? DateTime.parse(map['lastUsedAt'] as String)
-          : null,
-      embedding: map['embedding'] != null
-          ? List<double>.from(map['embedding'] as List)
+      createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),
+      lastUsedAt: map['lastUsedAt'] != null ? DateTime.parse(map['lastUsedAt'] as String) : null,
+      accessCount: map['accessCount'] as int? ?? 0,
+      lastAccessed: map['lastAccessed'] != null ? DateTime.parse(map['lastAccessed'] as String) : null,
+      embedding: map['embedding'] != null 
+          ? List<double>.from(map['embedding'] as List) 
           : null,
     );
   }
@@ -61,6 +63,8 @@ class KnowledgeEntry {
   KnowledgeEntry copyWith({
     String? id,
     DateTime? lastUsedAt,
+    DateTime? lastAccessed,
+    int? accessCount,
     List<double>? embedding,
   }) {
     return KnowledgeEntry(
@@ -71,26 +75,23 @@ class KnowledgeEntry {
       importance: importance,
       createdAt: createdAt,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
+      accessCount: accessCount ?? this.accessCount,
+      lastAccessed: lastAccessed ?? this.lastAccessed,
       embedding: embedding ?? this.embedding,
     );
   }
 }
 
-// (Keep KnowledgeLayers and KnowledgeTaxonomy exactly as they were)
-/// The fixed set of layers knowledge gets filed under. Kept as a const
-/// list (not a free-form string) so classification always lands on a
-/// known collection name rather than silently fragmenting into typo
-/// variants ("proffesional" vs "professional") over time.
 /// The fixed set of layers knowledge gets filed under.
 class KnowledgeLayers {
   static const personal = 'personal';
   static const professional = 'professional';
   static const technical = 'technical';
   static const projects = 'projects';
-  static const education = 'education'; // For DSA, interview prep, courses
+  static const education = 'education';
   static const preferences = 'preferences';
-  static const schedule = 'schedule'; // For events, meetings, automations
-  static const automations = 'automations'; // For email rules, scripts
+  static const schedule = 'schedule';
+  static const automations = 'automations';
   static const general = 'general';
 
   static const all = [
@@ -100,45 +101,37 @@ class KnowledgeLayers {
 }
 
 /// The strict enterprise dictionary.
-/// The LLM MUST choose from these tags. Dart enforces the layer and behavior.
 class KnowledgeTaxonomy {
-  // ─── SINGULAR ATTRIBUTES (Overwrites old facts) ─────────────────────
   static const String currentJob = 'current_job';
   static const String companyName = 'company';
   static const String location = 'location';
   static const String name = 'name';
   static const String timezone = 'timezone';
   static const String primaryEmail = 'primary_email';
-  static const String currentFocus = 'current_focus'; // e.g., "preparing for interviews"
+  static const String currentFocus = 'current_focus';
 
-  // ─── LIST ITEMS (Appends new facts) ─────────────────────────────────
-  // Professional & Technical
   static const String skill = 'skill';
   static const String pastExperience = 'past_experience';
-  static const String tool = 'tool'; // VS Code, Postman, Docker
+  static const String tool = 'tool';
   
-  // Projects & Code
   static const String project = 'project';
-  static const String codebase = 'codebase'; // specific repo info
+  static const String codebase = 'codebase';
   static const String bug = 'bug';
   static const String architecture = 'architecture';
 
-  // Education & Prep (DSA, Interviews)
-  static const String dsaTopic = 'dsa_topic'; // e.g., graphs, dynamic programming
+  static const String dsaTopic = 'dsa_topic';
   static const String interviewPrep = 'interview_prep';
-  static const String learningResource = 'learning_resource'; // links, books
+  static const String learningResource = 'learning_resource';
   
-  // Preferences & Personal
   static const String diet = 'diet';
   static const String allergy = 'allergy';
   static const String hobby = 'hobby';
   static const String relationship = 'relationship';
 
-  // Schedule & Automations
-  static const String event = 'event'; // meetings, birthdays
-  static const String routine = 'routine'; // "every monday I do X"
-  static const String emailRule = 'email_rule'; // "forward stripe emails to Raj"
-  static const String script = 'script'; // "run build script at 5pm"
+  static const String event = 'event';
+  static const String routine = 'routine';
+  static const String emailRule = 'email_rule';
+  static const String script = 'script';
 
   static const allTags = [
     currentJob, companyName, location, name, timezone, primaryEmail, currentFocus,
@@ -147,14 +140,12 @@ class KnowledgeTaxonomy {
     event, routine, emailRule, script
   ];
 
-  /// Returns true if this tag represents a singular attribute (should overwrite)
   static bool isAttribute(String tag) {
     return [
       currentJob, companyName, location, name, timezone, primaryEmail, currentFocus
     ].contains(tag);
   }
 
-  /// Deterministically maps a tag to its Firestore collection layer
   static String layerForTag(String tag) {
     if ([currentJob, companyName, pastExperience].contains(tag)) return KnowledgeLayers.professional;
     if ([skill, tool, codebase, bug, architecture].contains(tag)) return KnowledgeLayers.technical;

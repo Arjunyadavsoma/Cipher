@@ -167,11 +167,16 @@ class KnowledgeRepository {
     return results.expand((entries) => entries).toList();
   }
 
-  Future<void> touchLastUsed(String userId, KnowledgeEntry entry) async {
+    Future<void> touchLastUsed(String userId, KnowledgeEntry entry) async {
     if (entry.id.isEmpty) return;
 
+    // Increment accessCount and update both timestamps for the Scoring Engine
     await _entriesRef(userId).doc(entry.id).set(
-      {'lastUsedAt': DateTime.now().toIso8601String()},
+      {
+        'lastUsedAt': DateTime.now().toIso8601String(),
+        'lastAccessed': DateTime.now().toIso8601String(),
+        'accessCount': (entry.accessCount) + 1,
+      },
       SetOptions(merge: true),
     );
   }

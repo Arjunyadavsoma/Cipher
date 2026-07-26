@@ -223,7 +223,7 @@ class _ChatInputState extends State<ChatInput> {
     _mentionStartIndex = -1;
   }
 
-  void _selectMention(_AgentMention mention) {
+    void _selectMention(_AgentMention mention) {
     final text = widget.controller.text;
     final selection = widget.controller.selection;
     final cursor = selection.baseOffset;
@@ -245,14 +245,13 @@ class _ChatInputState extends State<ChatInput> {
     _mentionStartIndex = -1;
 
     widget.controller.text = newText;
-    // _mentionStartIndex was reset to -1, so compute cursor pos manually:
-// fallback
     // Simpler & correct: cursor lands right after the inserted "@keyword "
     widget.controller.selection = TextSelection.collapsed(
       offset: newText.indexOf(replacement) + replacement.length,
     );
-    // Keep focus on the field
-    FocusScope.of(context).requestFocus(FocusNode());
+    
+    // FIX: Removed FocusScope.of(context).requestFocus(FocusNode()); 
+    // The TextField naturally keeps focus when we update the controller programmatically.
   }
 
   // ---------------------------------------------------------------------------

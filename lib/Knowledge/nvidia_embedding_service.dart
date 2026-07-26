@@ -1,5 +1,3 @@
-
-
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -9,14 +7,12 @@ class NvidiaEmbeddingService {
   static final NvidiaEmbeddingService instance = NvidiaEmbeddingService._internal();
 
   // 🔴 PASTE YOUR NEW REGENERATED KEY HERE
-  final String _apiKey = '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'; 
+  final String _apiKey = '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'; 
 
-
-  static const String _model = 'baai/bge-m3';
+  static const String _model = 'nvidia/nemotron-3-embed-1b';
   static const String _url = 'https://integrate.api.nvidia.com/v1/embeddings';
 
   /// Converts text into a vector embedding.
-  /// [isQuery] should be true for user prompts, false for saved documents.
   Future<List<double>> embed(String text, {bool isQuery = false}) async {
     try {
       final response = await http.post(
@@ -29,8 +25,8 @@ class NvidiaEmbeddingService {
         body: jsonEncode({
           'input': [text],
           'model': _model,
-          'input_type': isQuery ? 'query' : 'passage',
           'encoding_format': 'float',
+          'truncate': 'NONE', // FIX: Added truncate NONE as per official docs
         }),
       );
 

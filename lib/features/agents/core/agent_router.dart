@@ -34,6 +34,9 @@ class AgentRouter {
     if (lowerMessage.contains('@interview')) {
       return AgentRegistry.instance.getAgent('interview_agent');
     }
+    if (lowerMessage.contains('@research')) {
+      return AgentRegistry.instance.getAgent('research_agent');
+    }
 
     final agents = AgentRegistry.instance.getAllAgents().toList()
       ..sort((a, b) => b.name.length.compareTo(a.name.length));

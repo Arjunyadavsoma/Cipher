@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cipher_ai/core/services/background_task_service.dart';
 import 'package:cipher_ai/core/services/file_parser/file_parser_service.dart';
 import 'package:cipher_ai/core/services/gmail/gmail_auth_service.dart';
-import 'package:cipher_ai/core/services/notification_service.dart'; // NEW
+import 'package:cipher_ai/core/services/notification_service.dart';
 import 'package:cipher_ai/core/services/share/share_intent_service.dart';
 import 'package:cipher_ai/core/services/supabase/voice_upload_service.dart';
 import 'package:cipher_ai/features/agents/services/agent_service.dart';
@@ -28,7 +28,6 @@ class HomeController extends ChangeNotifier {
   final List<ChatMessage> messages = [];
 
   Future<void> initUserBackgroundTasks(String userId) async {
-    // Schedule the 8 AM DSA fetch
     await BackgroundTaskService.instance.scheduleDailyDsaFetch(userId);
   }
 
@@ -37,10 +36,7 @@ class HomeController extends ChangeNotifier {
   bool showSuggestions = true;
   bool isDrawerOpen = false;
   bool needsGmailConnect = false;
-
   bool showGmailIntroDialog = false;
-
-  // NEW: Track if the user is currently looking at the chat screen
   bool _isChatScreenActive = false;
 
   static const _gmailIntroShownKey = 'gmail_intro_shown';
@@ -208,7 +204,7 @@ class HomeController extends ChangeNotifier {
         message: pipelineMessage,
       );
 
-      _processAssistantResult(result); // NEW: Handles media parsing & UI update
+      _processAssistantResult(result);
 
       final needsConnect = result.action?.type == AgentActionType.connectGmail;
       if (needsConnect) {
@@ -333,7 +329,7 @@ class HomeController extends ChangeNotifier {
         message: transcript!,
       );
 
-      _processAssistantResult(result); // NEW: Handles media parsing & UI update
+      _processAssistantResult(result);
 
       final needsConnect = result.action?.type == AgentActionType.connectGmail;
       if (needsConnect) {
@@ -357,20 +353,17 @@ class HomeController extends ChangeNotifier {
     _scrollToBottom();
   }
 
-  // ---------- NEW: HELPER TO PROCESS MEDIA & NOTIFICATIONS ----------
-  // ---------- NEW: HELPER TO PROCESS MEDIA & NOTIFICATIONS ----------
+  // ---------- HELPER TO PROCESS MEDIA & NOTIFICATIONS ----------
   void _processAssistantResult(AgentExecutionResult result) {
     String extractedImageUrl = '';
     String extractedVideoUrl = '';
 
-    // Parse image markdown: ![Generated Image](url)
     final imageRegex = RegExp(r'!\[.*?\]\((.*?)\)');
     final match = imageRegex.firstMatch(result.responseText);
     if (match != null) {
       extractedImageUrl = match.group(1)!;
     }
 
-    // Parse video markdown: [Watch Video](url)
     final videoRegex = RegExp(r'\[Watch Video\]\((.*?)\)');
     final videoMatch = videoRegex.firstMatch(result.responseText);
     if (videoMatch != null) {
@@ -397,7 +390,6 @@ class HomeController extends ChangeNotifier {
       ),
     );
 
-    // Send Notification if user is NOT on the screen
     if (!_isChatScreenActive) {
       String notifTitle = "cipher AI";
       String notifBody = "Response received.";
@@ -409,7 +401,6 @@ class HomeController extends ChangeNotifier {
         notifBody = "Your generated video is ready to view.";
       }
 
-      // FIXED: Calling the static method directly without .instance
       NotificationService.showLocalNotification(
         title: notifTitle,
         body: notifBody,
